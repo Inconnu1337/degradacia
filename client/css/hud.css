@@ -1,0 +1,12 @@
+/* ---------- верхняя строка ---------- */
+#top{position:fixed;top:0;left:0;right:0;height:var(--th);display:flex;align-items:center;gap:.75em;
+  padding:0 .6em;background:linear-gradient(#0a1118f7,#0a1118e2);border-bottom:1px solid var(--bd);z-index:6}
+#top .brand{font-weight:700;letter-spacing:.09em;color:var(--ac);white-space:nowrap;font-size:1.02em}
+#top .brand small{color:var(--mu);font-weight:400;letter-spacing:0;margin-left:.4em}
+#top .clock{font:600 1.5em/1 ui-monospace,Consolas,monospace;color:#fff;min-width:3.5em;text-align:center}
+.kv{display:flex;flex-direction:column;line-height:1.12;white-space:nowrap}
+.kv span{color:var(--mu);font-size:.78em;letter-spacing:.02em}
+.kv b{font-weight:600}
+#top .sp{flex:1;min-width:0}
+#top label{display:flex;gap:.3em;align-items:center;color:var(--mu);white-space:nowrap;cursor:pointer;font-size:.92em}
+#top input[type=checkbox]{accent-color:var(--ac)}

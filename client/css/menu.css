@@ -1,0 +1,35 @@
+/* ---------- главное меню ---------- */
+#menu{position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;padding:16px;
+  background:radial-gradient(ellipse at 50% 30%,#0d1a24 0,#04070a 70%);overflow:auto}
+#menu.on{display:flex}
+#menu .mbox{width:min(980px,100%);margin:auto}
+#menu h1{margin:0;font-size:2.3em;letter-spacing:.14em;color:var(--ac);text-align:center}
+#menu .msub{color:var(--mu);text-align:center;margin:.4em 0 1.6em;letter-spacing:.03em}
+#menu .mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+#menu .mcard{background:var(--pn);border:1px solid var(--bd2);border-radius:12px;padding:1.3em 1.4em;
+  display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.5);transition:border-color .15s,transform .15s}
+#menu .mcard:hover{border-color:var(--ac);transform:translateY(-2px)}
+#menu .mkick{color:var(--mu);font-size:.8em;letter-spacing:.12em;text-transform:uppercase}
+#menu .mcard h2{margin:.15em 0 0;font-size:1.7em;color:#fff}
+#menu .mname{color:var(--ac);font-size:.9em;letter-spacing:.08em;margin-bottom:.8em}
+#menu .mcard p{line-height:1.55;color:#c4ced5;margin:.2em 0 .6em}
+#menu .mcard ul{margin:0 0 1.2em;padding-left:1.2em;color:var(--mu);line-height:1.6;flex:1}
+#menu .mcard .btn{align-self:flex-start;padding:.6em 1.4em}
+#menu .mfoot{margin-top:1.4em;display:flex;gap:1em;align-items:center;justify-content:center;flex-wrap:wrap;text-align:center}
+#menu code{background:#10202c;border:1px solid var(--bd);border-radius:4px;padding:0 .35em}
+
+/* ---------- вход по коду ---------- */
+#menu .mcard .acts{display:flex;gap:.5em;flex-wrap:wrap}
+#menu .mjoin{margin-top:1.2em;display:flex;gap:.6em;align-items:center;justify-content:center;flex-wrap:wrap;color:var(--mu)}
+#menu .mjoin input{width:6em;text-transform:uppercase;letter-spacing:.2em;text-align:center;font:600 1.05em ui-monospace,monospace;
+  background:#0b1620;color:#fff;border:1px solid var(--bd2);border-radius:6px;padding:.4em .5em}
+
+/* ---------- строка связи и управление временем ---------- */
+#netbar{position:fixed;left:50%;transform:translateX(-50%);top:calc(var(--th) + 4px);z-index:12;display:none;
+  background:rgba(8,14,20,.86);border:1px solid var(--bd);border-radius:6px;padding:3px 10px;font-size:12px;color:var(--mu);white-space:nowrap}
+#netbar b{color:var(--ac);letter-spacing:.12em}
+#netbar .btn{margin-left:6px}
+#speedBox{display:flex;align-items:center;gap:6px}
+#speedBox .tctl{font-size:11px;color:var(--mu);white-space:nowrap}
+#speedBox .tctl.bad{color:var(--rd)}
+#speedBox button:disabled{opacity:.4;cursor:not-allowed}

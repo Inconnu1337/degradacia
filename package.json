@@ -1,0 +1,20 @@
+{
+  "name": "night-raid",
+  "version": "2.0.0",
+  "description": "Ночной рубеж — штабная игра о воздушной войне вымышленного края. Сервер с игровой логикой, браузерный клиент, сетевая дуэль.",
+  "private": true,
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node test/headless.js && node test/e2e.js",
+    "test:headless": "node test/headless.js",
+    "test:e2e": "node test/e2e.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "jsdom": "^24.1.0"
+  }
+}

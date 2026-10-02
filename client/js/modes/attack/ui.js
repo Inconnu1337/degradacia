@@ -1,0 +1,218 @@
+'use strict';
+/* ============================================================
+   НАЛЁТ: панели (клиент)
+   Вкладки «Удар» и «Пакеты», контакты разведки, справка.
+   Разбор ночи и итоги считает сервер (game/modes/attack/flow.js).
+   ============================================================ */
+
+const AttackUI = (() => {
+  function setSpeedBtns() { renderSpeedBox(Game.humans.length > 1 ? 'Готов к налёту ▶' : 'Начать налёт ▶') }
+
+  function renderTop() {
+    $('#hdNight').textContent = G.phase === 'prep' ? ` · день ${G.night}, сбор пакета`
+      : G.phase === 'night' ? ` · ночь ${G.night} из ${NIGHTS_TOTAL}` : ` · ночь ${G.night}`;
+    $('#hdClock').textContent = G.phase === 'prep' ? 'День' : clock(G.t);
+    $('#hdBud').textContent = Math.round(arsenalValue()) + ' млн';
+    const en = energy();
+    const eEl = $('#hdEn');
+    eEl.textContent = Math.round(en) + '%';
+    eEl.style.color = hpCol(en);
+    $('#hdCiv').textContent = (S ? S.civ : 0) + (G.civTotal ? ' / ' + G.civTotal : '');
+    const air = G.threats.filter(th => !th.dead).length;
+    const thEl = $('#hdThr');
+    thEl.textContent = air;
+    thEl.style.color = air ? '#f2b33d' : '#7f909c';
+    $('#hdWx').textContent = G.weather.n + (G.alarm ? ' · тревога' : '');
+  }
+
+  function renderTabs() {
+    const L = [['radio', 'Журнал'], ['intel', 'Контакты'], ['obj', 'Объекты']];
+    $('#tabsL').innerHTML = L.map(([k, n]) =>
+      `<button data-a="tabL" data-v="${k}" class="${G.tabL === k ? 'on' : ''}">${n}${G.unread[k] ? `<i>${G.unread[k]}</i>` : ''}</button>`).join('');
+    for (const k of ['radio', 'intel', 'obj', 'mind']) {
+      const e = $('#lc_' + k);
+      if (e) e.style.display = G.tabL === k ? '' : 'none';
+    }
+    if (G.tabR !== 'plan' && G.tabR !== 'strike') G.tabR = 'strike';
+    const R2 = [['strike', 'Удар'], ['plan', 'Пакеты']];
+    $('#tabsR').innerHTML = R2.map(([k, n]) =>
+      `<button data-a="tabR" data-v="${k}" class="${G.tabR === k ? 'on' : ''}">${n}</button>`).join('');
+    tabsDirty = false;
+  }
+
+  function renderObjTab() {
+    let h = `<div class="hint">Их энергосистема: <b style="color:${hpCol(energy())}">${Math.round(energy())}%</b>. Пять ночей. Сопутствующие потери в городах снижают итог.</div>`;
+    const arr = G.objs.slice().sort((a, b) => b.v * (a.hp > 0) - a.v * (b.hp > 0) || b.v - a.v);
+    for (const o of arr) {
+      h += `<div class="fl" data-a="selo" data-id="${o.id}" data-c="1">
+      <span class="dot" style="background:${hpCol(o.hp)}"></span>
+      <span class="nm">${esc(o.n)}<br><span class="mu">${OT[o.type].n} · важность ${o.v}</span></span>
+      <span class="mu" style="color:${hpCol(o.hp)}">${Math.round(o.hp)}%</span></div>`;
+    }
+    $('#lc_obj').innerHTML = h;
+  }
+
+  function renderContacts() {
+    const arr = Object.values(E.know).filter(k => k.conf >= 0.28).sort((a, b) => b.conf - a.conf);
+    let h = '<div class="hint">Позиции ПВО — только разведка, радиоперехват и их пуски. Кольцо на карте — оценка, не факт.</div>';
+    if (!arr.length) h += '<div class="hint">Контактов нет.</div>';
+    for (const k of arr) {
+      const dead = k.dead;
+      h += `<div class="fl" data-a="selk" data-id="${k.uid}">
+      <span class="dot" style="background:${dead ? '#ff5b47' : '#f2b33d'}"></span>
+      <span class="nm">${esc(UT[k.type] ? UT[k.type].n : k.type)}<br><span class="mu">кв. ${sq(k)} · ${esc(k.src)}${dead ? ' · поражён' : ''}</span></span>
+      <span class="mu">${pc(k.conf)}</span></div>`;
+    }
+    $('#lc_intel').innerHTML = h;
+  }
+
+  function renderThreatBar() {
+    if (G.phase !== 'night') { $('#threatbar').innerHTML = ''; lastTB = ''; return; }
+    const live = G.threats.filter(th => !th.dead);
+    if (!live.length) {
+      const h = '<div class="tbe">В воздухе пусто</div>';
+      if (h !== lastTB) { $('#threatbar').innerHTML = h; lastTB = h; }
+      return;
+    }
+    const grp = {};
+    for (const th of live) {
+      const g = grp[th.k] || (grp[th.k] = { n: 0, th });
+      g.n++;
+    }
+    let h = '';
+    for (const k of Object.keys(grp)) {
+      const g = grp[k];
+      h += `<div class="tch" data-a="selt" data-id="${g.th.id}" style="--c:${AIR_COL[g.th.cls] || '#f2b33d'}"><b>${g.n}</b> ${esc(TT[k].n)}</div>`;
+    }
+    if (h !== lastTB) { $('#threatbar').innerHTML = h; lastTB = h; }
+  }
+
+  function renderRight() {
+    const p = ensurePlan();
+    syncZone();
+    let h = '';
+    if (G.tabR === 'plan') {
+      const gs = E.groups.filter(g => g.n > g.launched || G.t - (g.launch || 0) < 7200);
+      h += '<div class="hint">Собранные пакеты. Снять можно то, что ещё не вышло в воздух.</div>';
+      if (!E.groups.length) h += '<div class="hint">План пуст. Соберите удар на вкладке «Удар».</div>';
+      for (const g of E.groups) {
+        const where = g.tgt && g.tgt.obj ? g.tgt.obj.n : 'точка';
+        h += `<div class="shop"><div class="row"><b>${g.n}× ${esc(TT[g.kind].n)}</b><span class="mu">${g.launched ? 'в воздухе ' + g.launched : clock(g.launch)}</span></div>
+        <p>${esc(g.zone.n)} → ${esc(where)}. Потерь ${g.lost || 0}, попаданий ${g.hit || 0}.</p>
+        ${g.launched < g.n ? `<button class="btn sm warn" data-a="cancelg" data-id="${g.id}">Снять невыпущенное</button>` : ''}</div>`;
+      }
+    } else {
+      const T = TT[p.k];
+      const aim = aimOf(p.tgt);
+      const patrol = routeOnly(p.k);
+      const where = patrol
+        ? (p.wps.length ? ('ваш маршрут, ' + p.wps.length + ' тч.') : 'кликните точки на карте')
+        : p.tgt && p.tgt.obj ? p.tgt.obj.n : p.tgt && p.tgt.aim ? 'точка кв. ' + sq(p.tgt.aim) : 'кликните карту';
+      let eta = '';
+      if (p.preview && p.preview.length > 1) {
+        const len = polyLen(p.preview[0], p.preview.slice(1));
+        eta = `${Math.round(len)} км · подлёт ${fmtDur(len / T.sp)}`;
+      }
+      h += `<div class="hint">${patrol
+        ? '«Сова» и «Вуаль» идут <b>только по точкам</b>, которые вы ставите кликом. На объект они сами не сворачивают. ПКМ снимает последнюю точку.'
+        : 'Клик по пустому месту — цель в этой точке. Клик по объекту — удар по нему. «Свой маршрут» добавляет изломы до цели.'}</div>`;
+      h += `<div class="row"><span>Цель</span><b>${esc(where)}</b></div>`;
+      if (eta) h += `<div class="row mu"><span>${eta}</span><span>${p.wps.length ? p.wps.length + ' излома' : 'автомаршрут'}</span></div>`;
+      const left = capLeft(p.k), pl = plannedLaunch(p);
+      const late = pl && pl.t + (p.n - 1) * pl.gap > NIGHT_LEN - 900;
+      h += `<div class="acts"><button class="btn pri" data-a="launch" ${(E.stock[p.k] || 0) < 1 || left < p.n || late || (patrol && !p.wps.length) ? 'disabled' : ''}>Пуск · ${Math.min(p.n, E.stock[p.k] || 0)}× ${esc(T.n)}</button></div>`;
+      if (pl) h += `<div class="row mu"><span>Первый пуск ≈ ${clock(pl.t)}${p.n > 1 ? ', последний ≈ ' + clock(pl.t + (p.n - 1) * pl.gap) : ''}</span><span>${late ? '<b class="bad">не успеть до рассвета</b>' : ''}</span></div>`;
+      h += `<div class="row mu"><span>Подготовят за ночь: ${CAP_N[capGroup(p.k)]}</span><span class="${left < p.n ? 'bad' : ''}">ещё ${left}</span></div>`;
+      h += '<div class="lbl">Средство</div>';
+      for (const k of ATK_KINDS) {
+        const n = Math.min(E.stock[k] || 0, Math.max(0, capLeft(k)));
+        h += `<div class="fl" data-a="weapon" data-k="${k}" style="${p.k === k ? 'background:#1c2b38' : ''}${n ? '' : ';opacity:.45'}">
+        <span class="nm">${esc(TT[k].n)}<br><span class="mu">${esc(CLS_N[TT[k].cls])} · ${num(TT[k].cost)} млн</span></span>
+        <span class="mu">${n}</span></div>`;
+      }
+      h += `<div class="lbl">Залп · в наличии ${E.stock[p.k] || 0}</div><div class="acts">`;
+      for (const n of [1, 2, 4, 6, 8, 12]) {
+        h += `<button class="btn sm ${p.n === n ? 'on' : ''}" data-a="cnt" data-v="${n}" ${Math.min(E.stock[p.k] || 0, capLeft(p.k)) < n ? 'disabled' : ''}>${n}</button>`;
+      }
+      h += '</div>';
+      h += '<div class="lbl">Район пуска</div><div class="acts">';
+      for (const z of zonesFor(p.k)) {
+        const busy = (E.zbook || {})[laneKey(p.k, z.id)] || 0;
+        h += `<button class="btn sm ${p.zid === z.id ? 'on' : ''}" data-a="zid" data-v="${z.id}" title="${busy > (G.phase === 'night' ? G.t : 0) ? 'Площадки заняты до ' + clock(busy) : 'Площадки свободны'}">${esc(z.n)}${busy > (G.phase === 'night' ? G.t : 0) ? ' · до ' + clock(busy) : ''}</button>`;
+      }
+      h += '</div><div class="lbl">Когда</div><div class="acts">';
+      for (const [v, lab] of [[0, 'сразу'], [1, '+1 ч'], [2, '+2 ч'], [4, '+4 ч'], [6, '+6 ч']]) {
+        h += `<button class="btn sm ${p.delay === v ? 'on' : ''}" data-a="delay" data-v="${v}">${lab}</button>`;
+      }
+      h += '</div>';
+      if (T.cls === 'drone' || T.cls === 'decoy') {
+        h += `<div class="acts"><button class="btn sm ${p.high ? 'on' : ''}" data-a="high">${p.high ? 'Высота 2–3 км' : 'Бреющий'}</button></div>`;
+      }
+      h += `<div class="hint">${esc(T.d)}</div>`;
+      h += `<div class="acts">
+      <button class="btn sm ${G.mode && G.mode.t === 'route' ? 'on' : ''}" data-a="route">Свой маршрут</button>
+      <button class="btn sm" data-a="reroute">Другой обход</button>
+      <button class="btn sm" data-a="clrwps" ${p.wps.length ? '' : 'disabled'}>Сбросить точки</button>
+    </div>`;
+    }
+    if (h !== lastRC) { $('#rc').innerHTML = h; lastRC = h; }
+  }
+
+  function helpModal() {
+    showModal(`<h1>Ночной налёт</h1>
+  <p class="big">Вы планируете воздушные удары по Привельскому краю. Их штаб ПВО играет сам: радары, ракеты, тревога, смена позиций. Вы не видите расчёты, пока их не вскроете.</p>
+  <h2>Как бить</h2>
+  <ul>
+  <li>Справа уже выбрана цель. Жёлтая кнопка «Пуск» ставит залп в план, затем сверху «Начать налёт».</li>
+  <li>Пусковые не бесконечны. У каждого района несколько площадок — пакеты встают в очередь. Приказ ночью доходит до расчётов не сразу (дроны — ~15 мин, крылатые — часы: носители выходят заранее). За ночь расчёты готовят ограниченное число средств, остальное ждёт следующей ночи.</li>
+  <li>«Начать налёт» — 19:00. Ускорение сверху, пауза — пробел.</li>
+  <li>Автомаршрут обходит только известные зоны. «Свой маршрут» — изломы кликами.</li>
+  <li>«Мотыльки» жгут их ракеты. «Сова» и излучающие РЛС вскрывают позиции. «Молот» и «Грач» бьют по контактам.</li>
+  <li>Попадание в жилой квартал даёт сопутствующие потери и режет очки. Цель кампании — энергосистема за ${NIGHTS_TOTAL} ночей.</li>
+  </ul>
+  <h2>Чего не видно</h2>
+  <p>Кольцо на карте — оценка разведки, комплекс мог уехать днём, если ночью стрелял или долго светил. Молчащий ЗРК на карте пуст, пока не выстрелит или пока над ним не пройдёт разведчик.</p>
+  <div class="acts"><button class="btn pri" data-a="close">К плану</button></div>`);
+  }
+
+  function onAction(a, el) {
+    const p = ensurePlan();
+      if (a === 'weapon') {
+        p.k = el.dataset.k;
+        p.n = Math.min(ATK_N[p.k] || 1, Math.max(1, E.stock[p.k] || 1));
+        if (routeOnly(p.k)) {
+          if (p.tgt && p.tgt.obj) p.tgt = null;
+          G.mode = { t: 'route' };
+          hint('Кликайте маршрут. Этот борт летит только по точкам.');
+        }
+        syncZone(); computePreview(); lastRC = ''; uiDirty();
+      } else if (a === 'cnt') { p.n = +el.dataset.v; lastRC = ''; uiDirty(); }
+      else if (a === 'delay') { p.delay = +el.dataset.v; lastRC = ''; uiDirty(); }
+      else if (a === 'zid') { p.zid = el.dataset.v; computePreview(); lastRC = ''; uiDirty(); }
+      else if (a === 'high') { p.high = !p.high; lastRC = ''; uiDirty(); }
+      else if (a === 'route') {
+        G.mode = { t: 'route' };
+        hint('Кликайте изломы. Объект или контакт — цель. ПКМ — выйти.');
+        uiDirty();
+      } else if (a === 'reroute') { p.wps = []; computePreview(); lastRC = ''; uiDirty(); }
+      else if (a === 'clrwps') { p.wps = []; computePreview(); lastRC = ''; uiDirty(); }
+      else if (a === 'launch') launchStrike();
+      else if (a === 'cancelg') cancelGroup(+el.dataset.id);
+      else if (a === 'selo') { const o = objById(el.dataset.id); if (o) setAimObj(o); }
+      else if (a === 'selk') {
+        const k = knowById(el.dataset.id);
+        if (k) { setAimContact(k); centerOn(k, Math.max(G.view.s, 4)); }
+      }
+  }
+
+  return {
+    top: renderTop,
+    tabs: renderTabs,
+    right: renderRight,
+    left(tab) { if (tab === 'obj') renderObjTab(); if (tab === 'intel') renderContacts() },
+    threatBar: renderThreatBar,
+    speedButtons: setSpeedBtns,
+    help: helpModal,
+    onAction
+  };
+})();

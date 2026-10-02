@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Ночной рубеж — штабная игра о воздушной войне вымышленного края.">
+<title>Ночной рубеж</title>
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/hud.css">
+<link rel="stylesheet" href="css/panels.css">
+<link rel="stylesheet" href="css/overlays.css">
+<link rel="stylesheet" href="css/responsive.css">
+<link rel="stylesheet" href="css/menu.css">
+</head>
+<body>
+<canvas id="map"></canvas>
+
+<header id="top">
+  <div class="brand"><span id="hdBrand">НОЧНОЙ РУБЕЖ</span><small id="hdNight" class="hide-s"></small></div>
+  <div class="clock" id="hdClock">19:00</div>
+  <div class="kv"><span id="lblBud">Бюджет</span><b id="hdBud" class="ac"></b></div>
+  <div class="kv hide-xs"><span id="lblEn">Энергосистема</span><b id="hdEn"></b></div>
+  <div class="kv hide-s"><span id="lblCiv">Пострадавшие</span><b id="hdCiv"></b></div>
+  <div class="kv"><span id="lblThr">На радарах</span><b id="hdThr"></b></div>
+  <div class="kv hide-s"><span>Погода</span><b id="hdWx"></b></div>
+  <div class="sp"></div>
+  <div id="speedBox"></div>
+  <label class="hide-xs" id="paceLabel">
+    <input type="checkbox" id="autoPace" checked> авто-темп</label>
+  <button class="btn" id="btnAlarm" data-a="alarm">Тревога: выкл</button>
+  <button class="btn hide-xs" id="btnZones" data-a="zones">Зоны</button>
+  <button class="btn hide-s" id="btnSpoil" data-a="spoil" title="Режим наблюдателя: показывать вкладку с замыслом противника">Замысел</button>
+  <button class="btn hide-xs" id="btnMode" data-a="menu" title="Меню: режимы, новая партия, вход по коду">Меню</button>
+  <button class="btn" data-a="help" title="Как играть (H)">?</button>
+</header>
+
+<aside id="left" class="panel">
+  <div class="colbtn" data-a="col" data-v="left">‹</div>
+  <div class="tabs" id="tabsL"></div>
+  <div class="pc log" id="lc_radio"></div>
+  <div class="pc log" id="lc_intel" style="display:none"></div>
+  <div class="pc" id="lc_obj" style="display:none"></div>
+  <div class="pc log" id="lc_mind" style="display:none"></div>
+</aside>
+
+<aside id="right" class="panel">
+  <div class="colbtn" data-a="col" data-v="right">›</div>
+  <div class="tabs" id="tabsR"></div>
+  <div class="pc" id="rc"></div>
+</aside>
+
+<div id="threatbar"></div>
+<div id="toast"></div>
+<div id="tip"></div>
+<div id="hintbar"></div>
+<div id="netbar"></div>
+<div id="modal"><div class="box" id="mbox"></div></div>
+
+<div id="menu"></div>
+
+<!-- общее с сервером: данные, география, чистые функции -->
+<script src="shared/util.js"></script>
+<script src="shared/config.js"></script>
+<script src="shared/data/lore.js"></script>
+<script src="shared/data/threats.js"></script>
+<script src="shared/data/units.js"></script>
+<script src="shared/data/objects.js"></script>
+<script src="shared/data/zones.js"></script>
+<script src="shared/data/crews.js"></script>
+<script src="shared/data/weather.js"></script>
+<script src="shared/data/launch.js"></script>
+<script src="shared/world.js"></script>
+<script src="shared/derived.js"></script>
+<script src="shared/routing.js"></script>
+<!-- клиент: связь, состояние, отрисовка, интерфейс -->
+<script src="js/dom.js"></script>
+<script src="js/modes/mode.js"></script>
+<script src="js/ui/core.js"></script>
+<script src="js/ui/radio-log.js"></script>
+<script src="js/net.js"></script>
+<script src="js/store.js"></script>
+<script src="js/render/canvas.js"></script>
+<script src="js/render/terrain.js"></script>
+<script src="js/render/art/helpers.js"></script>
+<script src="js/render/art/air.js"></script>
+<script src="js/render/art/ground.js"></script>
+<script src="js/render/art/objects.js"></script>
+<script src="js/render/art/glyphs.js"></script>
+<script src="js/render/map-layers.js"></script>
+<script src="js/input/input.js"></script>
+<script src="js/ui/shell.js"></script>
+<script src="js/ui/menu.js"></script>
+<script src="js/modes/defense/render.js"></script>
+<script src="js/modes/defense/input.js"></script>
+<script src="js/modes/defense/ui.js"></script>
+<script src="js/modes/defense/index.js"></script>
+<script src="js/modes/attack/planner.js"></script>
+<script src="js/modes/attack/render.js"></script>
+<script src="js/modes/attack/input.js"></script>
+<script src="js/modes/attack/ui.js"></script>
+<script src="js/modes/attack/index.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
