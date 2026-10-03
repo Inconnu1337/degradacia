@@ -39,11 +39,12 @@ function alarmStep(dt) {
       if (G.falseRun > 1500) {
         S.falseAlarm += dt;
         G.alarmTrust = Math.max(.2, G.alarmTrust - dt / (3600 * 5));
+        moraleAdd(-dt / 1200);
       }
     } else G.falseRun = 0;
   } else {
     G.falseRun = 0;
-    if (threatNearCities(22)) S.uncovered += dt;
+    if (threatNearCities(22)) { S.uncovered += dt; moraleAdd(-dt / 600 * 1.5) }
   }
   if (G.budget < 0 && G.alarm) {
     G.budget = 0;
@@ -57,13 +58,11 @@ function alarmStep(dt) {
 /* ---------- подготовка ---------- */
 function startPrep(first) {
   G.phase = 'prep'; G.t = 0; G.speed = 0;
-  G.threats = []; G.miss = []; G.comms = []; G.reqs = []; G.intelQ = []; G.ready = {};
+  G.threats = []; G.miss = []; G.comms = []; G.reqs = []; G.intelQ = []; G.ready = {}; G.fatQ = []; G.fatT = 0;
   G.alarm = false; G.alarmT = 0; G.falseRun = 0;
   G.alarmTrust = Math.min(1, G.alarmTrust + .25);
 
-  const wr = Math.random() * sum(WEATHER.map(w => w.w));
-  let acc = 0;
-  for (const w of WEATHER) { acc += w.w; if (wr <= acc) { G.weather = w; break } }
+  planWeather();
 
   for (const u of G.units) {
     u.moved = false; u.after = []; u.assign = null;
@@ -88,6 +87,13 @@ function startNight2() {
   G.phase = 'night'; G.t = 0; G.ready = {};
   resetSpeed(15);
   S.startBudget = G.budget;
+  for (const o of G.objs) { o.hitT = -1e9; o.ff = null; o.rw = null }
+  for (const u of G.units) u.fix = null;
+  resetCrews();
+  /* вертолёты с постоянной задачей взлетают сами */
+  for (const u of G.units) if (UT[u.k].air && u.patrol && u.patrol.keep && u.st === 'ready') {
+    if (G.weather.heli) { u.st = 'air'; u.dest = null; u.chase = null }
+  }
   hq(MODE.text.nightOpen(), 'hq');
   MODE.onNightOpen();
   for (const it of G.intelQ) if (it.t < 0) it.t = R(5, 200);
@@ -113,12 +119,14 @@ function step(dt) {
   G.jam = E.jamBase + (G.linkPenalty || 0) + (E.jamWin && G.t > E.jamWin[0] && G.t < E.jamWin[1] ? .3 : 0)
     + G.threats.reduce((a, th) => a + (!th.dead && th.cls === 'ewuav' ? .06 : 0), 0);
 
-  commsStep(); reqStep(); threatsStep(dt); alarmStep(dt);
+  commsStep(); reqStep(); threatsStep(dt); alarmStep(dt); weatherStep();
+  if (MODE.humans.includes('def')) { intelNoise(); idleChatter() }
+  fatigueStep();
 
   G.acc1 += dt;
   if (G.acc1 >= 1) {
     const st = G.acc1; G.acc1 = 0;
-    sense(st); unitsThink(st); ewStep(st); eObserve();
+    sense(st); unitsThink(st); ewStep(st); eObserve(); fireStep(st);
     const vis = G.threats.filter(th => th.vis && !th.dead);
     if (vis.length && !G.hadVis) {
       hq(MODE.text.seen(vis.length), 'w');

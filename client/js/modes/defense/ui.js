@@ -21,7 +21,10 @@ const DefenseUI = (() => {
     const eEl = $('#hdEn');
     eEl.textContent = Math.round(en) + '%';
     eEl.style.color = hpCol(en);
-    $('#hdCiv').textContent = (S ? S.civ : 0) + (G.civTotal ? ' / ' + G.civTotal : '');
+    const civ = $('#hdCiv');
+    civ.textContent = (S ? S.civ : 0) + (G.civTotal ? ' / ' + G.civTotal : '') + ' · дух ' + Math.round(G.morale) + '%';
+    civ.title = 'Пострадавшие за ночь / за кампанию · настроение края (от него зависит бюджет)';
+    civ.style.color = G.morale >= 60 ? '' : G.morale >= 35 ? '#f2b33d' : '#ff5b47';
     const thEl = $('#hdThr');
     thEl.textContent = G.det || 0;
     thEl.style.color = (G.det || 0) > 0 ? '#ff5b47' : '#7f909c';
@@ -30,8 +33,8 @@ const DefenseUI = (() => {
     ab.textContent = G.alarm ? 'ТРЕВОГА · ' + fmtDur(G.alarmT) : 'Тревога: выкл';
     ab.className = 'btn' + (G.alarm ? ' alarm' : '');
     ab.title = G.alarm
-      ? `Тревога объявлена. Потери среди населения снижены. Расход ${ALARM_COST_H} млн/ч. Доверие населения: ${pc(G.alarmTrust)}`
-      : 'Объявить воздушную тревогу в крае';
+      ? `Тревога объявлена: люди в укрытиях, объекты в аварийном режиме (ущерб от попаданий меньше). Расход ${ALARM_COST_H} млн/ч. Доверие к тревогам: ${pc(G.alarmTrust)}`
+      : 'Объявить воздушную тревогу: без неё пострадавших больше, и каждый сильнее бьёт по настроению края';
   }
 
   /* ---------- вкладки ---------- */
@@ -64,6 +67,13 @@ const DefenseUI = (() => {
     h += `<div class="row"><span>Командир</span><b>${c.trait}</b></div>
   <div class="row mu"><span>Слаженность ${pc(c.exp)}</span><span>Усталость ${pc(c.fat)}</span></div>
   <div class="row mu"><span>Сбито целей: ${u.kills}</span><span>Позиция: кв. ${sq(u)}</span></div>`;
+    if (u.fire > 0) h += `<div class="row"><span class="bad">🔥 Горит</span><span class="bad">${fireWord(u.fire)}</span></div>`;
+    if (u.hp < T.hp && (G.phase === 'prep' || G.phase === 'night')) {
+      const day = G.phase === 'prep', cost = Math.max(1, Math.round(T.cost * .25 * (1 - u.hp / T.hp)));
+      h += u.fix ? `<div class="row mu"><span>Ремонтники</span><span>${u.fix === 'go' ? 'в пути' : 'работают'}</span></div>`
+        : `<div class="acts"><button class="btn sm" data-a="fixu" data-id="${u.id}" ${day ? (G.budget < cost ? 'disabled' : '') : (G.crews.rep <= 0 ? 'disabled' : '')}>${day ? `Восстановить · ${cost} млн` : `Ремонт под огнём · бригад ${G.crews.rep}`}</button></div>`;
+      if (!day && !u.fix) h += '<div class="hint mu">Бригада едет к позиции и чинит +50% за 30 мин. Если по позиции ударят снова — будут потери среди ремонтников.</div>';
+    }
     if (T.radar) h += `<div class="row"><span>РЛС</span><b style="color:${u.rOn ? '#6cc3ff' : 'var(--mu)'}">${u.rOn ? 'излучает' : 'молчит'}</b></div>`;
     if (u.cover) { const o = objById(u.cover); if (o) h += `<div class="row"><span>Прикрывает</span><b>${esc(o.n)}</b></div>` }
     if (T.air) h += `<div class="row"><span>Топливо</span><b>${fmtDur(u.fuel)}</b></div>${bar(u.fuel / T.fuel, '#6cc3ff')}`;
@@ -75,11 +85,13 @@ const DefenseUI = (() => {
     if (T.radar) h += `<div class="row mu"><span>Дальность обнаружения</span><span>${T.radar} км (низколетящие — до ${HORIZON.low} км)</span></div>`;
     if (T.eo) h += `<div class="row mu"><span>Оптика и слух</span><span>${T.eo} км</span></div>`;
 
+    if (T.air) h += `<div class="row mu"><span>Сектор</span><span>${u.patrol ? esc(u.patrol.name) + (u.chase ? ' · перехват' : '') : 'не задан'}</span></div>`
+      + (G.weather.heli ? '' : '<div class="row"><span class="bad">Погода нелётная</span></div>');
     h += '<div class="lbl">Приказы</div><div class="acts">';
     h += `<button class="btn sm ${G.mode && G.mode.t === 'move' ? 'on' : ''}" data-a="mMove">${T.air ? 'Перебазировать' : 'Выдвинуться'}</button>`;
     if (T.air) {
       h += `<button class="btn sm ${G.mode && G.mode.t === 'patrol' ? 'on' : ''}" data-a="mPatrol">Патрулирование</button>`;
-      if (u.st === 'air') h += `<button class="btn sm" data-a="ord" data-o="rtb">На площадку</button>`;
+      if (u.st === 'air' || u.patrol) h += `<button class="btn sm" data-a="ord" data-o="rtb">${u.patrol ? 'Снять патруль' : 'На площадку'}</button>`;
     }
     if (W) h += `<button class="btn sm ${G.mode && G.mode.t === 'cover' ? 'on' : ''}" data-a="mCover">Прикрыть объект</button>`;
     if (W && u.am < W.am) h += `<button class="btn sm" data-a="ord" data-o="reload" ${G.budget < u.rc ? 'disabled' : ''}>Пополнить БК · ${num(u.rc)} млн</button>`;
@@ -124,6 +136,22 @@ const DefenseUI = (() => {
     return h + '</div>';
   }
 
+  const fireWord = f => f > .7 ? 'сильный пожар' : f > .35 ? 'пожар' : 'возгорание';
+
+  /** ночью: пожарные и аварийный ремонт под огнём */
+  function nightCrewsHTML(o) {
+    let h = '';
+    if (o.fire > 0) h += `<div class="row"><span class="bad">🔥 ${fireWord(o.fire)}</span>${bar(o.fire, '#ff7a3d')}</div>`;
+    const acts = [];
+    if (o.fire > 0) acts.push(o.ff ? `<span class="mu">Пожарные ${o.ff === 'go' ? 'в пути' : 'тушат'}</span>`
+      : `<button class="btn sm" data-a="extinguish" data-id="${o.id}" ${G.crews.fire <= 0 || G.budget < 1 ? 'disabled' : ''}>Пожарные · 1 млн · бригад ${G.crews.fire}</button>`);
+    if (o.hp < 100) acts.push(o.rw ? `<span class="mu">Ремонт ${o.rw === 'go' ? ': бригада в пути' : 'идёт'}</span>`
+      : `<button class="btn sm" data-a="repair" data-id="${o.id}" ${G.crews.rep <= 0 || o.fire > .2 || G.budget < Math.round(repCost(o) * 1.3) ? 'disabled' : ''}>Ремонт под огнём +20% · ${Math.round(repCost(o) * 1.3)} млн</button>`);
+    if (acts.length) h += `<div class="acts">${acts.join('')}</div>`;
+    if (o.fire > 0 || o.hp < 100) h += '<div class="hint mu">Бригады работают прямо во время налёта. Повторный прилёт по объекту — потери среди людей, падение духа края, бригада может не вернуться. Дождь тушит сам.</div>';
+    return h;
+  }
+
   function objCard(o) {
     const def = G.units.filter(u => UT[u.k].w && dist(u, o) < UT[u.k].w.r);
     const bal = G.units.filter(u => UT[u.k].w && UT[u.k].w.rb && dist(u, o) < UT[u.k].w.rb);
@@ -140,9 +168,10 @@ const DefenseUI = (() => {
       : '<div class="hint bad">Объект не прикрыт огневыми средствами.</div>';
     h += bal.length ? '<div class="hint good">Прикрыт от баллистики.</div>' : '<div class="hint mu">От баллистики не прикрыт.</div>';
     if (G.phase === 'prep' && o.hp < 100) {
-      h += `<div class="acts"><button class="btn" data-a="repair" data-id="${o.id}" ${o.rep || G.budget < repCost(o) ? 'disabled' : ''}>Ремонт +30% · ${repCost(o)} млн</button></div>`;
+      h += `<div class="acts"><button class="btn" data-a="repair" data-id="${o.id}" ${o.rep || G.budget < repCost(o) ? 'disabled' : ''}>Ремонт +${REPAIR_HP}% · ${repCost(o)} млн</button></div>`;
       if (o.rep) h += '<div class="hint mu">Ремонтная бригада уже работала здесь в эти сутки.</div>';
     }
+    if (G.phase === 'night') h += nightCrewsHTML(o);
     return h + '</div>';
   }
 
@@ -279,6 +308,13 @@ const DefenseUI = (() => {
   <li>Держать «Бастион» в молчании до баллистики.</li>
   <li>Макеты ЗРК — дешёвый способ поймать чужой «Молот» за 3 млн.</li>
   <li>Читать эфир: картина собирается из обрывков докладов, а не из одной сводки.</li>
+  <li>Тревога теперь недорогая (0,5 млн/ч) и нужна: без неё пострадавших больше, а «дух края» падает сильнее — и с ним бюджет. Пустая тревога тоже роняет доверие.</li>
+  <li>Погода (кнопка вверху): ветер ускоряет или тормозит «мопеды», снег их обледеняет, в туман вертолёты на земле, радары в дождь видят хуже.</li>
+  <li>Вертолёту достаточно один раз дать сектор — точку, объект или свой ЗРК. Дальше он сам ищет мелочь, ходит на заправку и возвращается.</li>
+  <li>FPV-дроны охотятся за техникой у границы. Лучшая защита — РЭБ «Туман» рядом и пулемёты.</li>
+  <li>После прилётов бывают пожары: огонь сам ест объект или технику, дождь тушит. Ночью можно послать пожарных (3 бригады) и аварийный ремонт под огнём (2 бригады) — но повторный удар по месту работ бьёт по людям.</li>
+  <li>Разведка заранее видит подготовку тяжёлого удара: шифрованный обмен, взлёт «Кондоров», выход кораблей «Шквал». Но противник умеет поднимать носители для вида — без пусков.</li>
+  <li>💾 вверху — сохранить партию файлом (днём). Загрузить — в меню; друг заходит по новому коду.</li>
   </ul>
   <div class="acts"><button class="btn pri" data-a="close">Понятно</button></div>`);
   }

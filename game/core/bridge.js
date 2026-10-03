@@ -40,6 +40,9 @@ function hq(txt, cls) {
     cls === 'hq' ? 'hq' : cls);
 }
 
+/** одна и та же строка всем живым сторонам (погода, рассвет) */
+function hqAll(txt, cls) { for (const r of MODE.humans) asSide(r, () => hq(txt, cls)) }
+
 function showIntel(it) {
   logLine('intel',
     `<span class="tm">${clock(G.t)}</span><span class="gr" title="${GRADE_D[it.gr[0]] || ''}">${it.gr}</span>${esc(it.txt)}`, it.cls);

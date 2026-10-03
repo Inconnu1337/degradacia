@@ -87,6 +87,13 @@ const DefenseAI = (() => {
     const heavy = st.albatros + st.krechet;
     const S0 = eTargets();
     if (!S0.length) return;
+    /* иногда — ложная активность: поднять носители для вида, чтобы ПВО нервничала и светила радарами */
+    if (n > 1 && chance(.3)) {
+      const kind = pick(['albatros', 'krechet', 'molot']);
+      const z = zonesFor(kind)[0], t = R(2, 8) * 3600;
+      carrierIntel(kind, z, t, kind === 'molot' ? RI(2, 4) : RI(10, 20), t + 3600, true);
+      mind(`Для вида подниму ${kind === 'albatros' ? '«Кондоры»' : kind === 'krechet' ? 'корабли' : 'пусковые ОТРК'} около ${clock(t)} — пусть их ПВО включит радары и пожжёт нервы.`);
+    }
     const deplet = E.lastSamShots || 0;
     const kn = knownSAM(.3), knHot = knownSAM(.6);
 

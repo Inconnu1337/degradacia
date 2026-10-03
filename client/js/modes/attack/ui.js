@@ -87,6 +87,29 @@ const AttackUI = (() => {
     if (h !== lastTB) { $('#threatbar').innerHTML = h; lastTB = h; }
   }
 
+  /** кнопка перенацеливания: только средства с каналом связи, ночью, раз в RETARGET_GAP */
+  function retargetBtn(g) {
+    if (!TT[g.kind].retarget || G.phase !== 'night' || (!g.alive && g.launched >= g.n)) return '';
+    const wait = g.retT != null ? 600 - (G.t - g.retT) : 0;
+    const on = G.mode && G.mode.t === 'retarget' && G.mode.gid === g.id;
+    return `<button class="btn sm ${on ? 'on' : ''}" data-a="retarget" data-id="${g.id}" ${wait > 0 ? 'disabled' : ''}>${wait > 0 ? 'Связь через ' + fmtDur(wait) : 'Перенацелить'}</button>`;
+  }
+
+  /** ложная активность: носители поднимаются, разведка ПВО это видит, но пусков нет */
+  function feintHTML(p) {
+    if (G.phase !== 'prep' && G.phase !== 'night') return '';
+    const used = E.feintUsed || {};
+    let h = `<div class="lbl">Ложная активность · время как у залпа: ${p.delay ? '+' + p.delay + ' ч' : 'сразу'}</div>
+    <div class="hint">Их разведка увидит подготовку тяжёлого удара — шифрованный обмен, взлёт, выход в море, — а пусков не будет. Цель: заставить ПВО включить радары, объявить тревогу впустую и потратить силы. Ракеты не тратятся.</div><div class="acts">`;
+    for (const [id, F] of Object.entries(FEINTS)) {
+      const left = F.cap - (used[id] || 0);
+      h += `<button class="btn sm" data-a="feint" data-k="${id}" ${left <= 0 ? 'disabled' : ''} title="${esc(F.d)}">${esc(F.n)} · ${left}</button>`;
+    }
+    h += '</div>';
+    for (const f of E.feints || []) h += `<div class="row mu"><span>${esc(FEINTS[f.kind].n)}</span><span>«пуск» ≈ ${clock(f.t)}</span></div>`;
+    return h;
+  }
+
   function renderRight() {
     const p = ensurePlan();
     syncZone();
@@ -99,7 +122,8 @@ const AttackUI = (() => {
         const where = g.tgt && g.tgt.obj ? g.tgt.obj.n : 'точка';
         h += `<div class="shop"><div class="row"><b>${g.n}× ${esc(TT[g.kind].n)}</b><span class="mu">${g.launched ? 'в воздухе ' + g.launched : clock(g.launch)}</span></div>
         <p>${esc(g.zone.n)} → ${esc(where)}. Потерь ${g.lost || 0}, попаданий ${g.hit || 0}.</p>
-        ${g.launched < g.n ? `<button class="btn sm warn" data-a="cancelg" data-id="${g.id}">Снять невыпущенное</button>` : ''}</div>`;
+        ${g.launched < g.n ? `<button class="btn sm warn" data-a="cancelg" data-id="${g.id}">Снять невыпущенное</button>` : ''}
+        ${retargetBtn(g)}</div>`;
       }
     } else {
       const T = TT[p.k];
@@ -120,7 +144,12 @@ const AttackUI = (() => {
       if (eta) h += `<div class="row mu"><span>${eta}</span><span>${p.wps.length ? p.wps.length + ' излома' : 'автомаршрут'}</span></div>`;
       const left = capLeft(p.k), pl = plannedLaunch(p);
       const late = pl && pl.t + (p.n - 1) * pl.gap > NIGHT_LEN - 900;
-      h += `<div class="acts"><button class="btn pri" data-a="launch" ${(E.stock[p.k] || 0) < 1 || left < p.n || late || (patrol && !p.wps.length) ? 'disabled' : ''}>Пуск · ${Math.min(p.n, E.stock[p.k] || 0)}× ${esc(T.n)}</button></div>`;
+      const zoneNow = chosenZone();
+      const far = T.range && aim && zoneNow && dist(zoneNow, aim) > T.range - 4;
+      const grounded = T.rc && !G.weather.fpv;
+      if (far) h += `<div class="row"><span class="bad">Цель дальше ${T.range} км от района пуска — FPV не долетит</span></div>`;
+      if (grounded) h += `<div class="row"><span class="bad">Погода нелётная для FPV</span></div>`;
+      h += `<div class="acts"><button class="btn pri" data-a="launch" ${(E.stock[p.k] || 0) < 1 || left < p.n || late || far || grounded || (patrol && !p.wps.length) ? 'disabled' : ''}>Пуск · ${Math.min(p.n, E.stock[p.k] || 0)}× ${esc(T.n)}</button></div>`;
       if (pl) h += `<div class="row mu"><span>Первый пуск ≈ ${clock(pl.t)}${p.n > 1 ? ', последний ≈ ' + clock(pl.t + (p.n - 1) * pl.gap) : ''}</span><span>${late ? '<b class="bad">не успеть до рассвета</b>' : ''}</span></div>`;
       h += `<div class="row mu"><span>Подготовят за ночь: ${CAP_N[capGroup(p.k)]}</span><span class="${left < p.n ? 'bad' : ''}">ещё ${left}</span></div>`;
       h += '<div class="lbl">Средство</div>';
@@ -154,6 +183,7 @@ const AttackUI = (() => {
       <button class="btn sm" data-a="reroute">Другой обход</button>
       <button class="btn sm" data-a="clrwps" ${p.wps.length ? '' : 'disabled'}>Сбросить точки</button>
     </div>`;
+      h += feintHTML(p);
     }
     if (h !== lastRC) { $('#rc').innerHTML = h; lastRC = h; }
   }
@@ -164,6 +194,7 @@ const AttackUI = (() => {
   <h2>Как бить</h2>
   <ul>
   <li>Справа уже выбрана цель. Жёлтая кнопка «Пуск» ставит залп в план, затем сверху «Начать налёт».</li>
+  <li>Тяжёлый удар их разведка видит заранее: взлёт «Кондоров», выход «Шквалов» в море, выдвижение ОТРК. «Ложная активность» внизу вкладки «Удар» показывает им ту же подготовку без пусков — пусть включают радары и объявляют тревогу впустую.</li>
   <li>Пусковые не бесконечны. У каждого района несколько площадок — пакеты встают в очередь. Приказ ночью доходит до расчётов не сразу (дроны — ~15 мин, крылатые — часы: носители выходят заранее). За ночь расчёты готовят ограниченное число средств, остальное ждёт следующей ночи.</li>
   <li>«Начать налёт» — 19:00. Ускорение сверху, пауза — пробел.</li>
   <li>Автомаршрут обходит только известные зоны. «Свой маршрут» — изломы кликами.</li>
@@ -177,6 +208,13 @@ const AttackUI = (() => {
 
   function onAction(a, el) {
     const p = ensurePlan();
+      if (a === 'feint') { cmd('feint', { kind: el.dataset.k, delay: p.delay }).then(() => { lastRC = ''; uiDirty() }); return }
+      if (a === 'retarget') {
+        const id = +el.dataset.id;
+        if (G.mode && G.mode.t === 'retarget' && G.mode.gid === id) { G.mode = null; hint('') }
+        else { G.mode = { t: 'retarget', gid: id }; hint('Новая цель пакета: клик по объекту, контакту или точке. Esc — отмена.') }
+        lastRC = ''; uiDirty(); return;
+      }
       if (a === 'weapon') {
         p.k = el.dataset.k;
         p.n = Math.min(ATK_N[p.k] || 1, Math.max(1, E.stock[p.k] || 1));

@@ -18,9 +18,9 @@ const FILES = [
   'shared/data/lore.js', 'shared/data/threats.js', 'shared/data/units.js', 'shared/data/objects.js',
   'shared/data/zones.js', 'shared/data/crews.js', 'shared/data/weather.js', 'shared/data/launch.js',
   'shared/world.js', 'shared/derived.js', 'shared/routing.js',
-  'game/core/mode.js', 'game/core/bridge.js', 'game/core/dispatch.js',
-  'game/sim/state.js', 'game/sim/comms.js', 'game/sim/intel.js', 'game/sim/units.js', 'game/sim/threats.js',
-  'game/sim/enemy/state.js', 'game/sim/enemy/knowledge.js', 'game/sim/enemy/groups.js',
+  'game/data/phrases.js', 'game/core/mode.js', 'game/core/bridge.js', 'game/core/dispatch.js',
+  'game/sim/state.js', 'game/sim/weather.js', 'game/sim/comms.js', 'game/sim/intel.js', 'game/sim/units.js', 'game/sim/threats.js', 'game/sim/damage.js',
+  'game/sim/enemy/state.js', 'game/sim/enemy/knowledge.js', 'game/sim/enemy/groups.js', 'game/sim/enemy/carriers.js',
   'game/sim/phases.js',
   'game/modes/defense/radio.js', 'game/modes/defense/attacker-ai.js', 'game/modes/defense/prep-events.js',
   'game/modes/defense/supply.js', 'game/modes/defense/flow.js',
@@ -28,7 +28,7 @@ const FILES = [
   'game/modes/attack/flow.js',
   'game/commands.js',
   'game/modes/defense/index.js', 'game/modes/attack/index.js', 'game/modes/duel/index.js',
-  'game/views.js', 'game/api.js'
+  'game/views.js', 'game/save.js', 'game/api.js'
 ];
 
 /* исходники компилируем один раз на процесс, запускаем в каждой комнате */
@@ -55,6 +55,8 @@ function createEngine(mode) {
     /** снимок — уже строка JSON, чтобы не разбирать и не собирать заново */
     view: role => api.view(role),
     drain: () => JSON.parse(api.drain()),
+    save: () => JSON.parse(api.save()),
+    load: obj => api.load(JSON.stringify(obj)),
     eval: code => vm.runInContext(code, ctx)
   };
 }

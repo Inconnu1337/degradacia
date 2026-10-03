@@ -100,6 +100,15 @@ globalThis.API = {
 
   view(role) { return JSON.stringify(viewFor(role)) },
 
+  /** полное состояние для файла сохранения (только днём) */
+  save() {
+    if (G.phase !== 'prep') throw new Error('Сохранять можно днём, в фазе подготовки');
+    return JSON.stringify(encodeState());
+  },
+
+  /** загрузить состояние из файла; json — строка */
+  load(json) { decodeState(JSON.parse(json)) },
+
   /** накопленные события; очередь очищается */
   drain() {
     if (!OUT.length) return '[]';

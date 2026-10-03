@@ -151,6 +151,13 @@ const AttackAI = (() => {
       hq('У них отбой тревоги.', 'm');
     }
     const bal = seen.some(th => th.cls === 'ballistic' || th.cls === 'aeroball');
+    /* разведка сообщила о носителях или пусках: ИИ-штаб включает радары и объявляет тревогу заранее.
+       Ложная активность налёта бьёт именно сюда: радары светятся, тревога — впустую */
+    const alert = (G.botIntel || []).some(t => t <= G.t && G.t - t < 2400);
+    if (alert) {
+      for (const u of G.units) if ((u.k === 'shield' || u.k === 'krom') && u.radar === 'cue') { u.radar = 'on'; u.alertOn = 1 }
+      if (!G.alarm && chance(.5)) { G.alarm = true; G.alarmSince = G.t; hq('Их разведка что-то заметила: в крае объявлена тревога, радары включаются.', 'w') }
+    } else for (const u of G.units) if (u.alertOn && !seen.length) { u.radar = 'cue'; u.alertOn = 0 }
     for (const u of G.units) {
       if (u.hp <= 0) continue;
       if (u.k === 'bastion') {

@@ -32,6 +32,16 @@ const AttackInput = (() => {
     const p = ensurePlan();
     const w = s2w(sp);
     const hit = pickAt(sp);
+    if (G.mode && G.mode.t === 'retarget') {
+      const gid = G.mode.gid;
+      let tgt;
+      if (hit && hit.type === 'o') tgt = { obj: hit.id };
+      else if (hit && hit.type === 'k') { const k = knowById(hit.id); tgt = k ? { aim: { x: k.x, y: k.y, uid: k.uid } } : { aim: w } }
+      else tgt = { aim: { x: w.x, y: w.y } };
+      G.mode = null; hint('');
+      cmd('retarget', { id: gid, tgt }).then(() => { lastRC = ''; uiDirty() });
+      return;
+    }
     if (routeOnly(p.k) || (G.mode && G.mode.t === 'route')) {
       addRoutePoint(w);
       return;
@@ -44,7 +54,7 @@ const AttackInput = (() => {
 
   function tooltip(hit) {
     let t = '';
-      if (hit.type === 't') { const th = thrById(hit.id); if (th) t = `<b>${esc(TT[th.k].n)}</b><br>${CLS_N[th.cls]}, ${Math.round(TT[th.k].sp * 3600)} км/ч` }
+      if (hit.type === 't') { const th = thrById(hit.id); if (th) t = `<b>${esc(TT[th.k].n)}</b><br>${CLS_N[th.cls]}, ${Math.round(th.sp * 3600)} км/ч` }
       else if (hit.type === 'o') { const o = objById(hit.id); if (o) t = `<b>${esc(o.n)}</b><br>${OT[o.type].n} · ${Math.round(o.hp)}%` }
       else if (hit.type === 'k') { const k = knowById(hit.id); if (k) t = `<b>${esc(UT[k.type] ? UT[k.type].n : k.type)}</b><br>контакт ${pc(k.conf)} · ${esc(k.src)}` }
     return t;

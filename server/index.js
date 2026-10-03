@@ -10,6 +10,7 @@
        { t:'create', mode, role }       новая партия (mode: defense | attack | duel)
        { t:'join', room, role? }        войти по коду (role не задан — свободная сторона)
        { t:'leave' }                    выйти в меню
+       { t:'load', file, role? }        новая партия из файла сохранения
        { t:'cmd', id, name, args }      команда стороны (см. game/commands.js, game/api.js)
      сервер → клиент
        { t:'joined', room, mode, role, humans, seats, logs, modal }
@@ -17,6 +18,7 @@
        { t:'ev', list:[…] }             события: log · toast · fx · modal · clear
        { t:'res', id, res }             ответ на команду
        { t:'seats', seats, note }       кто подключён
+       { t:'save', name, data }         файл сохранения (ответ на команду save)
        { t:'error', msg }
    ============================================================ */
 const http = require('http');
@@ -59,7 +61,8 @@ function serveStatic(req, res) {
 
 function createServer() {
   const server = http.createServer(serveStatic);
-  const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 64 * 1024 });
+  /* большой предел — ради загрузки сохранения; обычные сообщения маленькие */
+  const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 8 * 1024 * 1024 });
 
   wss.on('connection', ws => {
     const client = {
@@ -84,6 +87,18 @@ function createServer() {
         if (!room) return client.send({ t: 'error', msg: 'Партия не найдена: код неверный или она закрылась' });
         leave();
         room.join(client, m.role);
+      } else if (m.t === 'load') {
+        /* загрузка сохранения: новая партия с новым кодом, состояние из файла */
+        const f = m.file;
+        if (!f || f.game !== 'night-raid' || !f.state || !MODES.includes(f.state.mode))
+          return client.send({ t: 'error', msg: 'Это не файл сохранения «Ночного рубежа»' });
+        let room;
+        try { room = new Room(newCode(), f.state.mode, f) } catch (e) {
+          return client.send({ t: 'error', msg: 'Сохранение не загрузилось: ' + e.message });
+        }
+        leave();
+        rooms.set(room.id, room);
+        room.join(client, m.role || f.role);
       } else if (m.t === 'leave') leave();
       else if (m.t === 'cmd') {
         if (!client.room) return client.send({ t: 'res', id: m.id, res: { ok: false, error: 'нет партии' } });

@@ -14,7 +14,7 @@ function spawnThreat(q) {
     path: q.path.map(p => ({ x: p.x, y: p.y })), tgt: q.tgt, gid: q.gid,
     hx: 1, hy: 0, seen: -1e9, first: null, eng: 0, dead: false, lost: false,
     alt, idDecoy: false, idLv: 0, obs: 0, t0: G.t, vis: false,
-    armTgt: null, loiterT: 0, retgt: 0
+    armTgt: null, loiterT: 0, retgt: 0, degraded: false, hunt: null
   };
   const p = th.path[0], d = Math.hypot(p.x - th.x, p.y - th.y) || 1;
   th.hx = (p.x - th.x) / d; th.hy = (p.y - th.y) / d;
@@ -78,6 +78,13 @@ function threatsStep(dt) {
     const T = TT[th.k];
 
     if (T.arm && !th.lost && (G.t - (th.armT || 0)) > 20) { th.armT = G.t; armSeek(th) }
+    if (T.hunt && fpvStep(th, dt)) continue;
+    /* обледенение: лёгкие дроны в снег и низкую облачность падают */
+    if (WIND_CLS[th.cls] && !th.lost && G.weather.ice && chance(G.weather.ice / 3600 * dt)) {
+      th.lost = true; th.iced = true;
+      th.path = [{ x: th.x + Math.cos(G.wind.a) * R(1, 4), y: th.y + Math.sin(G.wind.a) * R(1, 4) }];
+      S.ice = (S.ice || 0) + 1;
+    }
 
     /* барражирование: покрутиться и выбрать цель */
     if (T.loiter && !th.lost && !th.retgt && th.path.length === 1 && dist(th, th.path[0]) < 14) {
@@ -92,7 +99,7 @@ function threatsStep(dt) {
       continue;
     }
 
-    let rem = T.sp * dt;
+    let rem = T.sp * windMul(th) * dt;
     while (rem > 0 && th.path.length) {
       const p = th.path[0], dx = p.x - th.x, dy = p.y - th.y, d = Math.hypot(dx, dy);
       if (d <= rem) { th.x = p.x; th.y = p.y; rem -= d; th.path.shift() }
@@ -114,7 +121,7 @@ function impact(th) {
     const c = inCity(th);
     if (c && T.wh && chance(.6)) {
       const n = Math.round(RI(0, 3) * alarmMul());
-      S.civ += n; G.civTotal += n;
+      civLoss(n);
       hq(`Потерявший навигацию ${thLabel(th)} упал в черте города ${c.gen}.${n ? ' Пострадавшие: ' + n + '.' : ' Без пострадавших.'}`, 'w');
       fx({ k: 'boom', x: th.x, y: th.y, d: 900 });
     } else if (T.wh) fx({ k: 'boom', x: th.x, y: th.y, d: 700, small: 1 });
@@ -122,7 +129,8 @@ function impact(th) {
   }
   if (!T.wh) return;
 
-  const cep = { drone: .12, loiter: .09, jet: .1, cruise: .06, arm: .1, ballistic: .08, aeroball: .1 }[th.cls] || .1;
+  const cep = ({ drone: .12, loiter: .09, jet: .1, cruise: .06, arm: .1, ballistic: .08, aeroball: .1, fpv: .02 }[th.cls] || .1)
+    * (th.degraded ? 3.5 : 1);   /* РЭБ сбила спутниковую поправку: ракета идёт по инерциальной системе, промах больше */
   const p = { x: th.x + R(-1, 1) * cep * 3, y: th.y + R(-1, 1) * cep * 3 };
   fx({ k: 'boom', x: p.x, y: p.y, d: 1200 });
   S.hits[th.k]++;
@@ -132,10 +140,16 @@ function impact(th) {
   for (const u of G.units.slice()) {
     const d = dist(u, p);
     if (d < .9) {
-      const dmg = T.wh * 2.6 * R(.7, 1.3) * (1 - d / 1);
+      let dmg = T.hunt
+        ? UT[u.k].hp * R(.45, .95) * (1 - d / 1.2)          /* FPV бьёт точно в машину */
+        : T.wh * 2.6 * R(.7, 1.3) * (1 - d / 1);
+      /* дивизионы ЗРК рассредоточены: одним попаданием всё не уничтожить */
+      if (UT[u.k].spread) dmg = Math.min(dmg, UT[u.k].hp * UT[u.k].spread);
+      if (u.fix && crewHit(u, u.fix, '«' + u.crew.cs + '»')) u.fix = null;
       u.hp -= dmg; u.dmgT = G.t;
       if (u.hp <= 0) unitDestroyed(u, th);
-      else say(u, `По нам прилёт! Есть повреждения (живучесть ${Math.round(u.hp / UT[u.k].hp * 100)}%).`, 'w');
+      else if (ignite(u, th.cls, dmg, UT[u.k].hp)) say(u, pick(['Горим! Тушим своими силами.', 'Техника горит, тушим!', 'Пожар на позиции! Работаем огнетушителями.']), 'w');
+      else say(u, phr('hitUs', { hp: Math.round(u.hp / UT[u.k].hp * 100) }, u), 'w');
     }
   }
   /* удар по позиции ПВО (в том числе по пустой) */
@@ -154,7 +168,8 @@ function impact(th) {
   let o = null, bd = 1.3;
   for (const ob of G.objs) { const d = dist(ob, p); if (d < bd) { bd = d; o = ob } }
   if (o && o.hp > 0) {
-    const dmg = T.wh * R(.7, 1.3) / OT[o.type].hard;
+    /* под тревогой объект переведён в аварийный режим: агрегаты остановлены, люди в укрытиях — ущерб меньше */
+    const dmg = T.wh * R(.7, 1.3) / OT[o.type].hard * (T.hunt ? .25 : 1) * (G.alarm ? .8 : 1);
     const before = o.hp;
     o.hp = Math.max(0, o.hp - dmg);
     o.hitT = G.t;
@@ -162,28 +177,32 @@ function impact(th) {
     hq(`⚠ Попадание: ${T.n} (${CLS_N[T.cls]}) — «${esc(o.n)}». Состояние ${Math.round(o.hp)}%.`, 'w');
     fx({ k: 'fire', x: o.x, y: o.y, d: 12000 });
     if (o.hp <= 0) hq(`«${esc(o.n)}» выведен из строя полностью.`, 'crit');
+    if (ignite(o, th.cls, dmg)) hq(`«${esc(o.n)}»: после прилёта начался пожар.`, 'w');
+    if (o.ff && crewHit(o, o.ff, o.n)) o.ff = null;
+    if (o.rw && crewHit(o, o.rw, o.n)) o.rw = null;
     const c = inCity(o);
     if (c && chance(.3)) {
-      const n = Math.round(RI(1, 5) * alarmMul());
-      S.civ += n; G.civTotal += n;
+      const n = Math.round(RI(1, 7) * alarmMul());
+      civLoss(n);
       if (n) hq(`${c.n}: пострадавшие в прилегающих кварталах — ${n}.`, 'w');
     }
   } else {
     const c = inCity(p);
     if (c) {
-      const n = Math.round(RI(1, 6) * alarmMul());
-      S.civ += n; G.civTotal += n;
+      const n = Math.round(RI(2, 10) * alarmMul());
+      civLoss(n);
       hq(`${T.n}: попадание в жилой квартал (${c.n}). Пострадавшие: ${n}.`, 'w');
     }
   }
 }
 
-function unitDestroyed(u, th) {
+function unitDestroyed(u, th, how) {
   u.hp = 0;
+  if (u.fix) G.crews.rep++;
   S.lost.push(u.k);
   G.units.splice(G.units.indexOf(u), 1);
-  if (UT[u.k].fake) hq(`«${esc(u.crew.cs)}»: макет ЗРК уничтожен. Противник потратил «${TT[th.k].n}» на муляж.`, 'g');
-  else hq(`✖ Потерян расчёт «${esc(u.crew.cs)}» (${UT[u.k].n}).`, 'crit');
+  if (UT[u.k].fake) hq(`«${esc(u.crew.cs)}»: макет ЗРК ${th ? `уничтожен. Противник потратил «${TT[th.k].n}» на муляж.` : 'сгорел.'}`, 'g');
+  else hq(`✖ Потерян расчёт «${esc(u.crew.cs)}» (${UT[u.k].n})${how ? ': ' + how : ''}.`, 'crit');
   const k = E.know[u.id];
   if (k) {
     const nc = nearCity(k);
@@ -192,4 +211,44 @@ function unitDestroyed(u, th) {
   }
   G.reqs = G.reqs.filter(r => r.u !== u);
   uiDirty();
+}
+
+/* ---------- FPV: ищет технику у переднего края ----------
+   Летит к точке, по пути и на месте осматривается камерой (дальность
+   зависит от погоды), находит машину — идёт в неё. Батарея кончается
+   через range км от точки пуска. Возвращает true, если шаг уже сделан. */
+function fpvStep(th, dt) {
+  const T = TT[th.k];
+  if (th.lost) return false;
+  /* батарея и погода */
+  const flown = (th.flown = (th.flown || 0) + T.sp * windMul(th) * dt);
+  if (flown > T.range || !G.weather.fpv) {
+    th.lost = true;
+    th.path = [{ x: th.x + R(-.5, .5), y: th.y + R(-.5, .5) }];
+    return false;
+  }
+  if (G.t - (th.lookT || -1e9) > 6) {
+    th.lookT = G.t;
+    const eye = 5 * G.weather.fpv * (G.weather.eo || 1);
+    let best = null, bd = eye;
+    for (const u of G.units) {
+      if (u.hp <= 0 || UT[u.k].air || (u.st === 'air')) continue;
+      const d = dist(u, th);
+      if (d < bd) { bd = d; best = u }
+    }
+    if (best) {
+      if (th.hunt !== best.id) {
+        th.hunt = best.id;
+        if (!UT[best.k].fake) sayT(best, 'fpv', 60, phr('fpvOver', { d: num(bd, 1) }, best), 'w');
+      }
+      th.tgt = { aim: { x: best.x, y: best.y, uid: best.id } };
+      th.path = [{ x: best.x, y: best.y }];
+    }
+  }
+  /* дошёл до точки без цели — кружит и ищет */
+  if (!th.hunt && th.path.length === 1 && dist(th, th.path[0]) < 1) {
+    const a = R(0, 6.28);
+    th.path = [{ x: th.x + Math.cos(a) * 3, y: th.y + Math.sin(a) * 3 }];
+  }
+  return false;
 }

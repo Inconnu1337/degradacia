@@ -33,3 +33,9 @@
 #speedBox .tctl{font-size:11px;color:var(--mu);white-space:nowrap}
 #speedBox .tctl.bad{color:var(--rd)}
 #speedBox button:disabled{opacity:.4;cursor:not-allowed}
+
+/* ---------- погода ---------- */
+.wxbtn{cursor:pointer;border-radius:5px;padding:0 4px}
+.wxbtn:hover{background:rgba(242,179,61,.12)}
+table.wx{width:100%;border-collapse:collapse;margin:.6em 0}
+table.wx td,table.wx th{padding:.32em .5em;border-bottom:1px solid var(--bd);text-align:left;font-size:.92em}

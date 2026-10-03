@@ -20,18 +20,18 @@
    ============================================================ */
 
 const LAUNCH = {
-  lanes: { tarsk: 2, belsk: 2, sarma: 1, sea: 4, bomb: 6, mig: 2 },
+  lanes: { tarsk: 2, belsk: 2, sarma: 1, sea: 4, bomb: 6, mig: 2, frn: 3, frc: 3, frs: 3 },
   balLanes: { tarsk: 1, belsk: 1, sarma: 1 },
-  cycle: { drone: 300, decoy: 240, loiter: 360, jet: 600, arm: 600, recon: 900, ewuav: 900, cruise: 900, ballistic: 2400, aeroball: 2400 },
+  cycle: { fpv: 150, drone: 300, decoy: 240, loiter: 360, jet: 600, arm: 600, recon: 900, ewuav: 900, cruise: 900, ballistic: 2400, aeroball: 2400 },
   lead: {
-    night: { drone: 900, decoy: 900, loiter: 900, jet: 1200, arm: 1200, recon: 900, ewuav: 1200, cruise: 10800, ballistic: 1800, aeroball: 3600 },
-    day: { drone: 240, decoy: 240, loiter: 240, jet: 300, arm: 300, recon: 240, ewuav: 300, cruise: 2700, ballistic: 600, aeroball: 1800 }
+    night: { fpv: 600, drone: 900, decoy: 900, loiter: 900, jet: 1200, arm: 1200, recon: 900, ewuav: 1200, cruise: 10800, ballistic: 1800, aeroball: 3600 },
+    day: { fpv: 240, drone: 240, decoy: 240, loiter: 240, jet: 300, arm: 300, recon: 240, ewuav: 300, cruise: 2700, ballistic: 600, aeroball: 1800 }
   },
-  nightCap: { drones: 50, strizh: 4, grach: 4, sova: 3, vual: 1, krechet: 6, albatros: 8, molot: 3, garpia: 1 }
+  nightCap: { fpv: 24, drones: 50, strizh: 4, grach: 4, sova: 3, vual: 1, krechet: 6, albatros: 8, molot: 3, garpia: 1 }
 };
 
 /** подписи групп лимита */
-const CAP_N = { drones: 'дроны и имитаторы', strizh: '«Стриж»', grach: '«Грач-Э»', sova: '«Сова»', vual: '«Вуаль»', krechet: '«Кречет-М»', albatros: '«Альбатрос»', molot: '«Молот»', garpia: '«Гарпия»' };
+const CAP_N = { fpv: 'FPV «Оса»', drones: 'дроны и имитаторы', strizh: '«Стриж»', grach: '«Грач-Э»', sova: '«Сова»', vual: '«Вуаль»', krechet: '«Кречет-М»', albatros: '«Альбатрос»', molot: '«Молот»', garpia: '«Гарпия»' };
 
 /** к какой группе ночного лимита относится средство */
 const capGroup = k => (k === 'jalo' || k === 'moth' || k === 'shershen') ? 'drones' : k;
@@ -55,3 +55,12 @@ function launchSpacing(k, zid) {
   const lanes = TT[k].cls === 'ballistic' ? (LAUNCH.balLanes[zid] || 1) : (LAUNCH.lanes[zid] || 1);
   return (LAUNCH.cycle[TT[k].cls] || 600) / lanes;
 }
+
+/** ложная активность налёта: подписи и лимиты на ночь (логика — game/sim/enemy/carriers.js) */
+const FEINTS = {
+  bomb: { n: '«Кондоры» в воздух', cap: 1, d: 'Стратегические бомбардировщики взлетают и идут к рубежу пусков, но не пускают' },
+  sea: { n: 'Носители в море', cap: 1, d: 'МРК «Шквал» выходят в море и маневрируют в районе пусков' },
+  molot: { n: 'Выдвинуть ОТРК', cap: 2, d: 'Пусковые «Молота» выходят на позиции и работают в эфире' },
+  garpia: { n: '«Соколы» в воздух', cap: 1, d: 'Носители «Гарпии» поднимаются и ходят у рубежа' },
+  drones: { n: 'Шум пусковых БпЛА', cap: 2, d: 'Расчёты дронов разворачиваются и выходят на связь' }
+};

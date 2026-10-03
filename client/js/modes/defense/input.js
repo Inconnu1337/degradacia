@@ -44,9 +44,19 @@ const DefenseInput = (() => {
         });
         return;
       }
-      if (m.t === 'move' || m.t === 'patrol') {
+      if (m.t === 'patrol') {
+        /* сектор можно привязать к объекту или своему расчёту — клик по нему */
+        const hit = pickAt(sp);
+        const o = { t: 'patrol', p };
+        if (hit && hit.type === 'o') o.obj = hit.id;
+        else if (hit && hit.type === 'u' && hit.id !== m.id) o.uid = hit.id;
         G.mode = null; hint('');
-        cmd('order', { id: m.id, o: { t: m.t === 'patrol' ? 'patrol' : 'move', p } });
+        cmd('order', { id: m.id, o });
+        uiDirty(); return;
+      }
+      if (m.t === 'move') {
+        G.mode = null; hint('');
+        cmd('order', { id: m.id, o: { t: 'move', p } });
         uiDirty(); return;
       }
       if (m.t === 'cover') {
@@ -79,9 +89,11 @@ const DefenseInput = (() => {
       case 'ans': cmd('ans', { id: +id, i: +el.dataset.i }).then(sent); break;
       case 'buy': startBuy(el.dataset.k, el.dataset.gift); break;
       case 'repair': cmd('repair', { id }).then(sent); break;
+      case 'extinguish': cmd('extinguish', { id }).then(sent); break;
+      case 'fixu': cmd('fixu', { id: +id }).then(sent); break;
       case 'sell': { const u = selU(); if (u) cmd('sell', { id: u.id }).then(r => { if (r.ok) G.sel = null; sent() }); break }
       case 'mMove': { const u = selU(); if (u) { G.mode = { t: 'move', id: u.id }; hint('Укажите точку выдвижения. ПКМ — отмена.') } uiDirty(); break }
-      case 'mPatrol': { const u = selU(); if (u) { G.mode = { t: 'patrol', id: u.id }; hint('Укажите центр района патрулирования.') } uiDirty(); break }
+      case 'mPatrol': { const u = selU(); if (u) { G.mode = { t: 'patrol', id: u.id }; hint('Сектор патруля: клик по объекту или своему расчёту — прикрывать его; по карте — точка. Вертолёт сам ищет цели и ходит на заправку.') } uiDirty(); break }
       case 'mCover': { const u = selU(); if (u) { G.mode = { t: 'cover', id: u.id }; hint('Укажите защищаемый объект на карте.') } uiDirty(); break }
       case 'ord': { const u = selU(); if (u) cmd('order', { id: u.id, o: { t: el.dataset.o } }).then(sent); break }
       case 'roe': { const u = selU(); if (u) cmd('order', { id: u.id, o: { t: 'roe', v } }).then(sent); break }

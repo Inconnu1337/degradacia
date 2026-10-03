@@ -33,7 +33,7 @@ const DefenseFlow = (() => {
     const rate = launched ? (killed + ew) / launched : 1;
     const faH = S.falseAlarm / 3600, unH = S.uncovered / 3600;
     const score = Math.max(0, Math.round(
-      1000 - S.objDmg * 5 - S.civ * 12 - lostCost * .6 + (launched ? rate * 200 : 0) - faH * 18 - unH * 26));
+      1000 - S.objDmg * 5 - S.civ * 15 - lostCost * .6 + (launched ? rate * 200 : 0) - faH * 18 - unH * 26));
     const grade = score >= 950 ? 'Отличная работа' : score >= 800 ? 'Хорошая ночь'
       : score >= 600 ? 'Тяжёлая ночь' : score >= 350 ? 'Серьёзные потери' : 'Провал обороны';
     G.camp.nights.push({ n: G.night, score, rate, civ: S.civ, en: Math.round(energy()) });
@@ -62,7 +62,13 @@ const DefenseFlow = (() => {
         if (b) { b.am = UT.bastion.w.am; gift += '<p class="good">Переданы ракеты для «Бастиона»: боекомплект восстановлен.</p>' }
       }
     }
-    const gain = 85 + (rate > .85 ? 25 : 0) + (S.civ === 0 ? 15 : 0);
+    /* настроение края за ночь: спокойная ночь поднимает, отключения света роняют */
+    const mBefore = G.morale;
+    if (S.civ === 0) moraleAdd(6);
+    if (S.uncovered < 300) moraleAdd(3);
+    moraleAdd(-(100 - energy()) / 25);
+    const mDelta = Math.round(G.morale - mBefore);
+    const gain = Math.round((85 + (rate > .85 ? 25 : 0) + (S.civ === 0 ? 15 : 0)) * moraleMul());
     const adapt = E.dayNews.length
       ? '<h2>Разведка: изменения у противника</h2><ul>' + E.dayNews.map(t => '<li>' + esc(t) + '</li>').join('') + '</ul>' : '';
 
@@ -76,7 +82,8 @@ const DefenseFlow = (() => {
   ${adapt}
   ${aiFoe ? `<h2>Что думал противник этой ночью</h2>${minds || '<p>—</p>'}` : ''}
   ${gift}
-  ${last ? '' : `<p>Бюджет на следующие сутки: <b class="ac">+${gain} млн</b>${rate > .85 ? ' (с премией за результат)' : ''}${S.civ === 0 ? ', плюс благодарность администрации' : ''}.</p>`}
+  <p><b>Настроение края:</b> ${Math.round(G.morale)}% (${mDelta >= 0 ? '+' : ''}${mDelta}) — ${G.morale >= 70 ? 'люди доверяют штабу' : G.morale >= 45 ? 'люди устали и раздражены' : 'край на грани: администрация урезает финансирование'}. Без тревоги каждый пострадавший бьёт по доверию сильнее; пустая тревога — тоже.</p>
+  ${last ? '' : `<p>Бюджет на следующие сутки: <b class="ac">+${gain} млн</b> (с учётом настроения края ×${moraleMul().toFixed(2)})${rate > .85 ? ' (с премией за результат)' : ''}${S.civ === 0 ? ', плюс благодарность администрации' : ''}.</p>`}
   <div class="acts">${last
         ? '<button class="btn pri" data-a="final">Итоги кампании</button>'
         : '<button class="btn pri" data-a="nextDay">К подготовке следующей ночи</button>'}</div>`);

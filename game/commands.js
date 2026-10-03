@@ -30,7 +30,15 @@ const DEFENSE_COMMANDS = {
     return u ? ok({ uid: u.id }) : fail('не размещено');
   },
 
-  repair({ id }) { return repairObj(String(id)) ? ok() : fail('ремонт недоступен') },
+  /** ремонт объекта: днём сразу, ночью — аварийная бригада под огнём */
+  repair({ id }) {
+    const o = objById(String(id));
+    if (!o) return fail('нет объекта');
+    if (G.phase === 'night') return nightRepair(o);
+    return repairObj(o.id) ? ok() : fail('ремонт недоступен');
+  },
+  extinguish({ id }) { const o = objById(String(id)); return o ? sendFirefighters(o) : fail('нет объекта') },
+  fixu({ id }) { const u = unitById(+id); return u ? repairUnit(u) : fail('нет расчёта') },
 
   sell({ id }) {
     const u = unitById(+id);
@@ -46,11 +54,20 @@ const DEFENSE_COMMANDS = {
     if (!o || typeof o.t !== 'string') return fail('пустой приказ');
     const T = UT[u.k];
     switch (o.t) {
-      case 'move': case 'patrol': {
+      case 'move': {
         const p = netPoint(o.p);
         if (!p) return fail('неверная точка');
-        if (o.t === 'patrol' && !T.air) return fail('патрулируют только вертолёты');
-        order(u, { t: o.t, p });
+        order(u, { t: 'move', p });
+        return ok();
+      }
+      case 'patrol': {
+        /* сектор: точка, объект (obj) или наш расчёт (uid) — центр следует за ним */
+        if (!T.air) return fail('патрулируют только вертолёты');
+        const obj = o.obj != null ? objById(String(o.obj)) : null;
+        const v = o.uid != null ? unitById(+o.uid) : null;
+        const p = obj ? { x: obj.x, y: obj.y } : v ? { x: v.x, y: v.y } : netPoint(o.p);
+        if (!p) return fail('неверная точка');
+        order(u, { t: 'patrol', p, obj: obj ? obj.id : null, uid: v && v !== u ? v.id : null });
         return ok();
       }
       case 'cover': {
@@ -98,5 +115,7 @@ const DEFENSE_COMMANDS = {
 /* ---------- сторона налёта ---------- */
 const ATTACK_COMMANDS = {
   launch({ plan }) { return launchStrike(plan) },
-  cancelg({ id }) { return cancelGroup(+id) }
+  cancelg({ id }) { return cancelGroup(+id) },
+  retarget({ id, tgt }) { return retargetGroup(+id, tgt) },
+  feint({ kind, zid, delay }) { return launchFeint({ kind, zid, delay }) }
 };

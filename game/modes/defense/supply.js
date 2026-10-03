@@ -40,7 +40,7 @@ function repairObj(id) {
   const o = objById(id);
   if (!o || o.rep || G.phase !== 'prep' || G.budget < repCost(o) || o.hp >= 100) return false;
   G.budget -= repCost(o);
-  o.hp = Math.min(100, o.hp + 30);
+  o.hp = Math.min(100, o.hp + REPAIR_HP);
   o.rep = true;
   hq(`Ремонтная бригада: «${esc(o.n)}» восстановлен до ${Math.round(o.hp)}%.`, 'g');
   return true;

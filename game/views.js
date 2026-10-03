@@ -14,7 +14,10 @@
 const pt = p => p ? { x: p.x, y: p.y } : null;
 
 function objV(o) {
-  return { id: o.id, n: o.n, type: o.type, x: o.x, y: o.y, v: o.v, hp: o.hp, hitT: o.hitT, rep: o.rep, city: o.city ? { n: o.city.n } : null };
+  return {
+    id: o.id, n: o.n, type: o.type, x: o.x, y: o.y, v: o.v, hp: o.hp, hitT: o.hitT, rep: o.rep, city: o.city ? { n: o.city.n } : null,
+    fire: o.fire || 0, ff: o.ff ? o.ff.st : null, rw: o.rw ? o.rw.st : null
+  };
 }
 
 function unitV(u) {
@@ -22,7 +25,9 @@ function unitV(u) {
     id: u.id, k: u.k, x: u.x, y: u.y, h: u.h, ta: u.ta, hp: u.hp, am: u.am, st: u.st, stT: u.stT,
     dest: pt(u.dest), radar: u.radar, roe: u.roe, cover: u.cover, assign: u.assign,
     crew: { cs: u.crew.cs, exp: u.crew.exp, fat: u.crew.fat, trait: u.crew.trait },
-    kills: u.kills, rOn: u.rOn, pend: u.pend, fuel: u.fuel, rc: reloadCost(u)
+    kills: u.kills, rOn: u.rOn, pend: u.pend, fuel: u.fuel, rc: reloadCost(u),
+    fire: u.fire || 0, fix: u.fix ? u.fix.st : null,
+    patrol: u.patrol ? { x: u.patrol.x, y: u.patrol.y, name: patrolName(u.patrol) } : null, chase: u.chase || null
   };
 }
 
@@ -74,7 +79,8 @@ function groupV(g) {
   return {
     id: g.id, kind: g.kind, n: g.n, zone: { id: g.zone.id, n: g.zone.n }, tgt,
     launch: g.launch, arrive: g.arrive, launched: g.launched, lost: g.lost, hit: g.hit,
-    start: pt(g.start), path: (g.path || []).map(pt), high: g.high
+    start: pt(g.start), path: (g.path || []).map(pt), high: g.high, retT: g.retT || null,
+    alive: G.threats.filter(th => th.gid === g.id && !th.dead && !th.lost).length
   };
 }
 
@@ -83,7 +89,8 @@ function commonV(role) {
   return {
     mode: MODE.id, humans: MODE.humans, role,
     night: G.night, t: G.t, phase: G.phase, speed: G.speed, chosen: SPEED, time: timeView(role), auto: AUTO[role],
-    ready: G.ready, weather: G.weather, alarm: G.alarm, civTotal: G.civTotal,
+    ready: G.ready, weather: G.weather, wind: G.wind, alarm: G.alarm,
+    forecast: G.wxNext ? { t: G.wxNext.t, n: wxById(G.wxNext.id).n } : null, civTotal: G.civTotal,
     over: G.phase === 'debrief' && MODE.campaignOver(),
     objs: G.objs.map(objV), miss: G.miss.map(missV)
   };
@@ -93,8 +100,8 @@ function viewFor(role) {
   const G2 = commonV(role);
   if (role === 'def') {
     Object.assign(G2, {
-      budget: G.budget, alarmT: G.alarmT, alarmTrust: G.alarmTrust, det: G.det || 0,
-      hq: G.hq, gifts: G.gifts, warnedUncovered: G.warnedUncovered || 0,
+      budget: G.budget, morale: G.morale, alarmT: G.alarmT, alarmTrust: G.alarmTrust, det: G.det || 0,
+      hq: G.hq, gifts: G.gifts, warnedUncovered: G.warnedUncovered || 0, crews: G.crews || CREWS_PER_NIGHT,
       spoilable: !MODE.humans.includes('atk'),
       units: G.units.map(unitV),
       threats: G.threats.filter(th => !th.dead && G.t - th.seen <= 200).map(threatDefV),
@@ -110,7 +117,8 @@ function viewFor(role) {
   });
   return {
     G: G2,
-    E: { stock: E.stock, know, heat: E.heat, groups: E.groups.map(groupV), used: E.used, zbook: E.zbook },
+    E: { stock: E.stock, know, heat: E.heat, groups: E.groups.map(groupV), used: E.used, zbook: E.zbook,
+      feints: E.feints || [], feintUsed: E.feintUsed || {} },
     S: { civ: S ? S.civ : 0 }
   };
 }

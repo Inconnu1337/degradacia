@@ -15,7 +15,8 @@ const IDLE_MS = 10 * 60e3;   /* пустая комната живёт 10 мин
 const SIDE_NAME = { def: 'штаб ПВО', atk: 'сторона налёта' };
 
 class Room {
-  constructor(id, mode) {
+  /** saved — содержимое файла сохранения (если партия загружается) */
+  constructor(id, mode, saved) {
     this.id = id;
     this.mode = mode;
     this.humans = HUMANS[mode];
@@ -28,6 +29,15 @@ class Room {
     this.lastTick = Date.now();
     this.lastSnap = 0;
     this.dispatch(this.engine.drain());
+    if (saved) {
+      this.engine.load(saved.state);
+      this.engine.drain();
+      for (const r of this.humans) {
+        const L = saved.logs && saved.logs[r];
+        if (L) for (const box of ['radio', 'intel', 'mind']) this.logs[r][box] = (Array.isArray(L[box]) ? L[box] : [])
+          .slice(-LOG_KEEP).filter(ev => ev && typeof ev.html === 'string').map(ev => ({ e: 'log', box, html: ev.html, cls: String(ev.cls || '') }));
+      }
+    }
     this.timer = setInterval(() => this.tick(), TICK_MS);
   }
 
@@ -63,6 +73,17 @@ class Room {
   }
 
   command(client, id, name, args) {
+    /* сохранение: полное состояние + журналы — файлом этому клиенту */
+    if (name === 'save') {
+      let res;
+      try {
+        const state = this.engine.save();
+        const file = { game: 'night-raid', saved: new Date().toISOString(), room: this.id, role: client.role, state, logs: this.logs };
+        client.send({ t: 'save', name: `night-raid-${this.mode}-day${state.night}-${this.id}.json`, data: file });
+        res = { ok: true };
+      } catch (e) { res = { ok: false, error: e.message } }
+      return client.send({ t: 'res', id, res });
+    }
     /* снова открыть закрытое окно разбора/итогов — это забота комнаты, не правил */
     if (name === 'reopen') {
       const html = this.modal[client.role];

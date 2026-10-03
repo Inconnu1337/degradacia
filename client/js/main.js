@@ -13,6 +13,7 @@ function loop(ts) {
   if (G && MODE) {
     Store.interpolate(performance.now());
     draw(dtms);
+    Sound.update();
     uiTimer += dtms;
     if ((dirty && uiTimer > 90) || uiTimer > 320) { uiTimer = 0; renderAll() }
   }
@@ -31,9 +32,10 @@ function onConnected() {
 function boot() {
   initCanvas();
   buildWorld();
-  renderTerrain();
+  if (!window.__TEST__) renderTerrain();  /* в тестах (jsdom) рельеф не рисуем: долго и не нужно */
   initInput();
   initMenu();
+  Sound.init();
   requestAnimationFrame(ts => { lastTs = ts; loop(ts) });
   Net.connect(onConnected);
 }

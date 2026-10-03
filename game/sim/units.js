@@ -52,7 +52,7 @@ function sense(dt) {
       if (u.rOn && T.radar) {
         const alt = th.alt === 'high' ? 1.35 : th.alt === 'mid' ? 1.12 : 1;
         const cap = HORIZON[th.alt] || HORIZON.low;
-        const rng = Math.min(T.radar * TTh.dm * alt * jm, cap);
+        const rng = Math.min(T.radar * TTh.dm * alt * jm * (wx.radar || 1), cap);
         if (d < rng) { det = true; byRadar = true }
       }
       if (eo && d < eo * (EOK[th.cls] || 0) * (th.alt === 'high' ? .5 : 1)) {
@@ -95,6 +95,9 @@ function react(u) {
 function pkEff(u, th) {
   const W = UT[u.k].w, c = u.crew;
   let p = (W.pk[th.cls] || 0) * (.8 + .3 * c.exp) * (1 - .15 * c.fat);
+  /* повреждённый комплекс работает хуже */
+  const T = UT[u.k];
+  if (u.hp < T.hp) p *= .55 + .45 * u.hp / T.hp;
   if (W.kind === 'gun') { p *= G.weather.gun; if (th.alt === 'high') p *= .4; if (th.alt === 'mid') p *= .7 }
   return clamp(p, 0, .97);
 }
@@ -170,16 +173,16 @@ function fire(u, th) {
   if (W.kind === 'gun') {
     fx({ k: 'tracer', x: u.x, y: u.y, x2: th.x, y2: th.y, d: 340 });
     if (chance(pk)) killThreat(th, u);
-    else if (chance(.25)) sayT(u, 'gmiss', 22, 'Очередь мимо, цель прошла.', 'm');
+    else if (chance(.25)) sayT(u, 'gmiss', 22, phr('gmiss', {}, u), 'm');
   } else {
     th.eng++;
     G.miss.push({ x: u.x, y: u.y, sp: W.msp, th, u, pk, t0: G.t, kind: W.kind, trail: [], maxT: W.r / W.msp * 1.7 + 15 });
     fx({ k: 'launch', x: u.x, y: u.y, d: 520, a: u.ta });
     eSawLaunch(u);
-    if (W.mc >= .4) sayT(u, 'fire', 8, pick([
-      `Пуск! Цель ${thLabel(th)}, азимут ${az(u, th)}, ${num(dist(u, th), 0)} км.`,
-      `Пуск по цели азимут ${az(u, th)}.`,
-      `Работаем. Пуск по ${thLabel(th)}.`]));
+    if (W.mc >= .4 || chance(.25)) sayT(u, 'fire', W.mc >= .4 ? 8 : 45, phr('fire', {
+      lb: thLabel(th), az: az(u, th), d: num(dist(u, th), 0),
+      alt: th.alt === 'high' ? 'большая' : th.alt === 'mid' ? 'средняя' : 'малая'
+    }, u));
   }
   if (u.am === 0) say(u, W.kind === 'gun' ? 'Боекомплект израсходован, ствол молчит.' : 'Ракет нет! Пусковые пустые.', 'w');
 }
@@ -199,7 +202,7 @@ function missStep(dt) {
       if (chance(m.pk)) killThreat(th, m.u);
       else {
         fx({ k: 'air', x: m.x, y: m.y, d: 380, small: 1 });
-        sayT(m.u, 'miss', 10, pick(['Промах. Цель продолжает полёт.', 'Промах! Цель идёт дальше.', 'Подрыв мимо, цель жива.']), 'w');
+        sayT(m.u, 'miss', 10, phr('miss', {}, m.u), 'w');
       }
     } else {
       m.x += dx / d * stp; m.y += dy / d * stp;
@@ -208,7 +211,7 @@ function missStep(dt) {
     }
     if (G.t - m.t0 > m.maxT && !m.done) {
       m.done = true; th.eng--;
-      sayT(m.u, 'miss2', 15, 'Ракета не догнала цель, ушла на самоликвидацию.', 'm');
+      sayT(m.u, 'miss2', 15, phr('miss2', {}, m.u), 'm');
     }
   }
   G.miss = G.miss.filter(m => !m.done);
@@ -229,10 +232,7 @@ function killThreat(th, u) {
   MODE.onThreatKilled(th, u);
   debris(th, u);
   const lb = thLabel(th);
-  sayT(u, 'kill', W.kind === 'gun' ? 20 : 6,
-    W.kind === 'gun'
-      ? pick([`Есть! Минус ${lb}.`, `Сбили ${lb}, упал в поле.`, `Минус один, ${lb}.`])
-      : pick([`Цель поражена (${lb}).`, `Есть поражение, ${lb}.`, `Минус ${lb}. Цель уничтожена.`]), 'g');
+  sayT(u, 'kill', W.kind === 'gun' ? 20 : 6, phr(W.kind === 'gun' ? 'killGun' : 'killMsl', { lb, am: u.am }, u), 'g');
 }
 
 function debris(th, u) {
@@ -241,15 +241,30 @@ function debris(th, u) {
   const p = { drone: .25, decoy: .1, loiter: .2, jet: .3, recon: .1, ewuav: .1, arm: .25, cruise: .35, ballistic: .45, aeroball: .45 }[th.cls];
   if (!chance(p)) return;
   const n = Math.max(0, Math.round(RI(0, 4) * alarmMul()));
-  S.civ += n; G.civTotal += n;
+  civLoss(n);
   hq(`Обломки сбитой цели упали в жилом районе (${c.n}).${n ? ' Пострадавшие: ' + n + '.' : ' Без пострадавших.'}`, 'w');
 }
 
 /* ---------- тревога: сколько людей успевает в укрытия ---------- */
 function alarmMul() {
   if (!G.alarm) return 1;
-  return lerp(.85, .22, clamp(G.alarmTrust, 0, 1));
+  return lerp(.85, .18, clamp(G.alarmTrust, 0, 1));
 }
+
+/* ---------- население ----------
+   G.morale (0–100) — настроение края. Падает от пострадавших (особенно
+   без тревоги), от пустых тревог и отключений света; растёт после
+   спокойных ночей. От него зависит бюджет на следующие сутки. */
+function civLoss(n) {
+  if (!n) return;
+  S.civ += n; G.civTotal += n;
+  moraleAdd(-n * (G.alarm ? .9 : 1.6));
+}
+
+function moraleAdd(d) { G.morale = clamp((G.morale == null ? 70 : G.morale) + d, 0, 100) }
+
+/** множитель бюджета от настроения населения */
+const moraleMul = () => .55 + .6 * (G.morale == null ? 70 : G.morale) / 100;
 
 /* ---------- собственные решения расчётов ---------- */
 function unitsThink(dt) {
@@ -339,15 +354,17 @@ function concerns(u) {
     else sayT(u, 'dmg', 900, `Живучесть ${Math.round(u.hp / T.hp * 100)}%. Ремонтной машины рядом нет, работаем как можем.`, 'w');
   }
   /* усталость */
-  if (c.fat > .8 && !u.reqT.fat) {
-    u.reqT.fat = t;
-    say(u, 'Штаб, личный состав на пределе. Реакция падает, возможны ошибки.', 'w');
+  /* о пределе сил расчёт сообщает раз за ночь, а доклады копятся и уходят сводкой (fatigueStep) */
+  if (c.fat > .8 && u.fatNight !== G.night) {
+    u.fatNight = G.night;
+    if (!UT[u.k].fake) (G.fatQ = G.fatQ || []).push(u.id);
   }
-  /* топливо вертолёта */
-  if (T.air && u.st === 'air' && u.fuel < 600 && !u.rtb && t - (u.reqT.fuel || -1e9) > 600) {
-    u.reqT.fuel = t;
-    say(u, `Топлива на ${fmtDur(u.fuel)}, возвращаемся на площадку.`, 'w');
-    receive(u, { t: 'rtb' });
+  /* топливо вертолёта: возвращаемся с запасом на дорогу; сектор не бросаем — после заправки вернёмся */
+  if (T.air && u.st === 'air' && !u.rtb && u.base && u.fuel < dist(u, u.base) / T.sp * 1.25 + 300) {
+    u.rtb = 1; u.chase = null; u.dest = { ...u.base };
+    say(u, u.patrol && u.patrol.keep
+      ? `Топливо на исходе (${fmtDur(u.fuel)}). Идём на заправку, потом обратно в сектор.`
+      : `Топлива на ${fmtDur(u.fuel)}, возвращаемся на площадку.`, 'w');
   }
 }
 
@@ -358,45 +375,24 @@ function unitsStep(dt) {
   for (const u of G.units) {
     const T = UT[u.k];
     if (u.st === 'move' && u.dest) {
-      const d = dist(u, u.dest), st = T.sp * dt;
+      const d = dist(u, u.dest), st = T.sp * (G.weather.march || 1) * dt;
       u.h = Math.atan2(u.dest.y - u.y, u.dest.x - u.x);
       if (d <= st) {
         u.x = u.dest.x; u.y = u.dest.y; u.dest = null; markSpot(u);
         u.st = 'deploy'; u.stT = G.t + T.dep;
-        say(u, `На позиции, кв. ${sq(u)}. Развёртываемся, ~${fmtDur(T.dep)}.`);
+        say(u, phr('arrive', { sq: sq(u), eta: fmtDur(T.dep) }, u));
       } else { u.x += (u.dest.x - u.x) / d * st; u.y += (u.dest.y - u.y) / d * st }
     }
-    else if (u.st === 'air') {
-      u.fuel -= dt;
-      const tgt = u.dest || u.patrol || u.base;
-      if (tgt) {
-        const d = dist(u, tgt), st = T.sp * dt;
-        if (d > .5) {
-          u.h = Math.atan2(tgt.y - u.y, tgt.x - u.x);
-          u.x += (tgt.y === u.y && tgt.x === u.x) ? 0 : (tgt.x - u.x) / d * st;
-          u.y += (tgt.y - u.y) / d * st;
-        } else if (u.rtb) {
-          u.rtb = 0; u.dest = null; u.st = 'refuel'; u.stT = G.t + 900;
-          say(u, 'На площадке. Дозаправка и пополнение боекомплекта, ~15 мин.');
-        } else if (u.patrol) {
-          /* барражирование по кругу вокруг точки патрулирования */
-          u.dest = null;
-          u.orb = (u.orb || 0) + dt * .0016;
-          u.x = u.patrol.x + Math.cos(u.orb) * 6;
-          u.y = u.patrol.y + Math.sin(u.orb) * 6;
-          u.h = u.orb + Math.PI / 2;
-        } else { u.dest = null }
-      }
-      if (u.fuel <= 0) {
-        u.fuel = 0;
-        if (!u.rtb) { u.rtb = 1; u.dest = { ...u.base }; say(u, 'Топливо на нуле, идём на площадку!', 'w') }
-      }
-    }
-    else if (u.st === 'deploy' && G.t >= u.stT) { u.st = 'ready'; say(u, 'Развернулись. К бою готовы.', 'g') }
-    else if (u.st === 'reload' && G.t >= u.stT) { u.st = 'ready'; u.am = T.w.am; say(u, 'Боекомплект пополнен. Готовы.', 'g') }
+    else if (u.st === 'air') heliStep(u, T, dt);
+    else if (u.st === 'deploy' && G.t >= u.stT) { u.st = 'ready'; say(u, phr('deployed', {}, u), 'g') }
+    else if (u.st === 'reload' && G.t >= u.stT) { u.st = 'ready'; u.am = T.w.am; say(u, phr('reloaded', { am: u.am }, u), 'g') }
     else if (u.st === 'refuel' && G.t >= u.stT) {
       u.st = 'ready'; u.fuel = T.fuel; u.am = T.w.am;
-      say(u, 'Заправлены, боекомплект пополнен. Готовы к вылету.', 'g');
+      /* вертолёт с постоянной задачей сам возвращается в сектор */
+      if (u.patrol && u.patrol.keep && G.weather.heli) {
+        u.st = 'air'; u.dest = null; u.chase = null;
+        say(u, `Заправлены, боекомплект полный. Возвращаемся в сектор: ${patrolName(u.patrol)}.`, 'g');
+      } else say(u, 'Заправлены, боекомплект пополнен. Готовы к вылету.', 'g');
     }
     /* ремонт от «Кузнеца» */
     if (u.hp < T.hp && u.st === 'ready') {
@@ -406,7 +402,8 @@ function unitsStep(dt) {
         if (u.hp >= T.hp) sayT(u, 'fixed', 1e9, 'Повреждения устранены, техника в строю.', 'g');
       }
     }
-    u.crew.fat = Math.min(1, u.crew.fat + dt / (14 * 3600));
+    /* за спокойную ночь расчёт устаёт до ~0.65; до предела доводит работа (выстрелы, марши) */
+    u.crew.fat = Math.min(1, u.crew.fat + dt / (18 * 3600) * (u.st === 'move' ? 1.6 : 1));
   }
 }
 
@@ -416,16 +413,132 @@ function ewStep(dt) {
     if (u.k !== 'ew' || u.st !== 'ready') continue;
     const T = UT[u.k];
     for (const th of G.threats) {
-      if (th.dead || th.lost || !TT[th.k].gps) continue;
+      if (th.dead || th.lost) continue;
+      const TTh = TT[th.k];
+      /* FPV управляется по радиоканалу: РЭБ давит его сильно и с запасом по дальности */
+      if (TTh.rc) {
+        if (dist(u, th) < T.ewr * 1.3 && chance(.012 * (1 - E.adapt.ewRes * .5) * dt)) {
+          th.lost = true;
+          th.path = [{ x: th.x + R(-.6, .6), y: th.y + R(-.6, .6) }];
+          S.ew[th.k] = (S.ew[th.k] || 0) + 1;
+          MODE.onNavLost(th);
+          sayT(u, 'ewfpv', 30, phr('ewFpv', {}, u), 'g');
+        }
+        continue;
+      }
+      if (!TTh.gps || th.degraded) continue;
       if (dist(u, th) > T.ewr) continue;
-      if (chance(.0016 * TT[th.k].gps * (1 - E.adapt.ewRes) * dt)) {
+      if (chance(.0016 * TTh.gps * (1 - E.adapt.ewRes) * dt)) {
+        /* крылатая ракета не теряется: уходит на инерциальную навигацию и мажет сильнее */
+        if (th.cls === 'cruise') {
+          th.degraded = true;
+          sayT(u, 'ewcr', 60, `${thLabel(th)}: сбили спутниковую поправку, промах будет больше. Курс не потеряла.`, 'm');
+          continue;
+        }
         th.lost = true;
         const a = R(0, 6.28), r = R(8, 32);
         th.path = [{ x: th.x + Math.cos(a) * r, y: th.y + Math.sin(a) * r }];
         S.ew[th.k]++; E.learn.ew++;
         MODE.onNavLost(th);
-        sayT(u, 'ew', 20, `${thLabel(th)} потерял навигацию, уходит ${DIRS_ON[dirIdx(Math.cos(a), Math.sin(a))]}.`, 'g');
+        sayT(u, 'ew', 20, phr('ewNav', { lb: thLabel(th), dir: DIRS_ON[dirIdx(Math.cos(a), Math.sin(a))] }, u), 'g');
       }
     }
   }
+}
+
+/* ---------- вертолёт: патруль сектора ----------
+   Сектор — точка, объект или наш расчёт (u.patrol.obj / .uid): центр
+   следует за ним. Вертолёт сам ищет «мопеды» и прочую мелочь в радиусе
+   PATROL_R от центра по данным всей сети, догоняет и бьёт пулемётом,
+   потом возвращается на круг. Топливо — сам на заправку и обратно. */
+const PATROL_R = 24;
+const HELI_PREY = { drone: 1, decoy: 1, loiter: 1, recon: 1, ewuav: 1, fpv: 1, arm: 1 };
+
+function patrolCenter(pt) {
+  if (pt.obj) { const o = objById(pt.obj); if (o) { pt.x = o.x; pt.y = o.y } }
+  if (pt.uid) { const v = unitById(pt.uid); if (v && v.hp > 0) { pt.x = v.x; pt.y = v.y } else pt.uid = null }
+  return pt;
+}
+
+function patrolName(pt) {
+  if (pt.obj) { const o = objById(pt.obj); if (o) return '«' + o.n + '»' }
+  if (pt.uid) { const v = unitById(pt.uid); if (v) return 'прикрытие «' + v.crew.cs + '»' }
+  return 'кв. ' + sq(pt);
+}
+
+function heliStep(u, T, dt) {
+  u.fuel -= dt;
+  const st = T.sp * dt;
+  /* охота: ближайшая подходящая цель в секторе */
+  if (u.patrol && !u.rtb && u.am > 0) {
+    const c = patrolCenter(u.patrol);
+    let ch = u.chase ? thrById(u.chase) : null;
+    if (ch && (ch.dead || dist(ch, c) > PATROL_R * 1.6 || G.t - ch.seen > 30)) ch = null;
+    if (!ch && G.t - (u.huntT || -1e9) > 5) {
+      u.huntT = G.t;
+      let bd = PATROL_R;
+      for (const th of G.threats) {
+        if (th.dead || !HELI_PREY[th.cls] || G.t - th.seen > 10 || th.alt === 'high') continue;
+        const d = dist(th, c);
+        if (d < bd) { bd = d; ch = th }
+      }
+      if (ch && u.chase !== ch.id) sayT(u, 'hunt', 90, phr('hunt', { d: num(dist(u, ch), 0) }, u));
+    }
+    u.chase = ch ? ch.id : null;
+    if (ch) {
+      /* упреждение: идём туда, где цель будет */
+      const ts = TT[ch.k].sp, lead = dist(u, ch) / (T.sp + .001) * .6;
+      const aim = { x: ch.x + ch.hx * ts * lead, y: ch.y + ch.hy * ts * lead };
+      const d = dist(u, aim) || 1;
+      u.h = Math.atan2(aim.y - u.y, aim.x - u.x);
+      const k = Math.min(1, st / d);
+      u.x += (aim.x - u.x) * k; u.y += (aim.y - u.y) * k;
+      return heliFuel(u);
+    }
+  }
+  const tgt = u.dest || (u.patrol ? patrolCenter(u.patrol) : null) || u.base;
+  if (tgt) {
+    const d = dist(u, tgt);
+    if (u.patrol && !u.dest && !u.rtb && d < 7) {
+      /* круг над сектором, плавно */
+      u.orb = (u.orb == null ? Math.atan2(u.y - tgt.y, u.x - tgt.x) : u.orb) + dt * .0016;
+      const nx = tgt.x + Math.cos(u.orb) * 6, ny = tgt.y + Math.sin(u.orb) * 6;
+      const dd = Math.hypot(nx - u.x, ny - u.y) || 1, k = Math.min(1, st / dd);
+      u.h = Math.atan2(ny - u.y, nx - u.x);
+      u.x += (nx - u.x) * k; u.y += (ny - u.y) * k;
+    } else if (d > .5) {
+      u.h = Math.atan2(tgt.y - u.y, tgt.x - u.x);
+      u.x += (tgt.x - u.x) / d * st; u.y += (tgt.y - u.y) / d * st;
+    } else if (u.rtb) {
+      u.rtb = 0; u.dest = null; u.st = 'refuel'; u.stT = G.t + 900;
+      say(u, 'На площадке. Дозаправка и пополнение боекомплекта, ~15 мин.');
+    } else u.dest = null;
+  }
+  heliFuel(u);
+}
+
+function heliFuel(u) {
+  if (u.fuel > 0) return;
+  u.fuel = 0;
+  if (!u.rtb) { u.rtb = 1; u.chase = null; u.dest = { ...u.base }; say(u, 'Топливо на нуле, идём на площадку!', 'w') }
+}
+
+/* ---------- усталость: не чаще одного доклада в FAT_GAP ----------
+   Один вымотанный расчёт докладывает сам; если таких несколько —
+   дежурный штаба сводит их в одну строку. */
+const FAT_GAP = 1500;
+
+function fatigueStep() {
+  if (!G.fatQ || !G.fatQ.length || G.t < (G.fatT || 0)) return;
+  G.fatT = G.t + FAT_GAP;
+  const us = G.fatQ.map(id => unitById(id)).filter(u => u && u.hp > 0);
+  G.fatQ = [];
+  if (!us.length) return;
+  if (us.length === 1) {
+    say(us[0], pick(['Штаб, личный состав на пределе. Реакция падает, возможны ошибки.',
+      'Люди вымотаны, штаб. Реагируем медленнее, учтите.', 'Смена держится на кофе. Ошибки возможны.']), 'w');
+    return;
+  }
+  const names = us.slice(0, 3).map(u => '«' + esc(u.crew.cs) + '»').join(', ');
+  hq(`Дежурный: на пределе сил ${names}${us.length > 3 ? ' и ещё ' + (us.length - 3) : ''}. Реакция расчётов падает — днём дать отдых.`, 'w');
 }

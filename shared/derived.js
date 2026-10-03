@@ -86,15 +86,17 @@ function reachable(u, p) {
 /** сколько секунд расчёт ждёт ответа штаба на запрос */
 const REQ_TTL = 210;
 
-const repCost = o => Math.round(8 + o.v * .1);
+/** ремонт объекта за день: +35% состояния */
+const repCost = o => Math.round(4 + o.v * .04);
+const REPAIR_HP = 35;
 
 const canBuy = k => G.budget >= UT[k].cost;
 
 /* ---------- налёт ---------- */
-const ATK_KINDS = ['jalo', 'moth', 'shershen', 'strizh', 'sova', 'vual', 'grach', 'krechet', 'albatros', 'molot', 'garpia'];
+const ATK_KINDS = ['fpv', 'jalo', 'moth', 'shershen', 'strizh', 'sova', 'vual', 'grach', 'krechet', 'albatros', 'molot', 'garpia'];
 
 /** залп по умолчанию для каждого средства */
-const ATK_N = { jalo: 8, moth: 4, shershen: 2, strizh: 2, sova: 1, vual: 1, grach: 2, krechet: 2, albatros: 4, molot: 1, garpia: 1 };
+const ATK_N = { fpv: 4, jalo: 8, moth: 4, shershen: 2, strizh: 2, sova: 1, vual: 1, grach: 2, krechet: 2, albatros: 4, molot: 1, garpia: 1 };
 
 /** «Сова» и «Вуаль» идут только по точкам маршрута */
 function routeOnly(k) {

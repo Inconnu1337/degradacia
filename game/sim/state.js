@@ -56,8 +56,8 @@ function newCampaign() {
     units: [], threats: [], miss: [], objs: [], reqs: [], comms: [], intelQ: [],
     alarm: false, alarmSince: -1e9, alarmT: 0, alarmTrust: 1,
     idc: 1, jam: 0, acc1: 0,
-    camp: { nights: [], civ: 0 }, campA: { nights: [] }, weather: WEATHER[0], gifts: [],
-    civTotal: 0, hadVis: false, hadBal: false, lastFalse: 0,
+    camp: { nights: [], civ: 0 }, campA: { nights: [] }, weather: WEATHER[0], wind: { a: 3.14, v: 3 }, wxNext: null, gifts: [],
+    civTotal: 0, morale: 70, hadVis: false, hadBal: false, lastFalse: 0,
     /* готовность сторон к общему шагу (заступить, следующий день, новая кампания) */
     ready: {}
   };

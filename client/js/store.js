@@ -55,7 +55,7 @@ const Store = (() => {
     snapAt = now;
     const local = {};
     if (G) for (const k of LOCAL_KEYS) local[k] = G[k];
-    const prevPhase = G && G.phase, prevReqs = G ? G.reqs.length : 0;
+    const prevPhase = G && G.phase, prevReqs = G ? G.reqs.length : 0, prevAlarm = G && G.alarm;
     const old = G;
     G = Object.assign(v.G, G ? local : freshLocal());
     E = v.E; S = v.S;
@@ -70,15 +70,16 @@ const Store = (() => {
     if (G.reqs.length > prevReqs && MODE && MODE.id === 'defense') { G.tabR = 'ord'; tabsDirty = true }
     if (prevPhase !== G.phase) { tabsDirty = true; lastRC = ''; if (G.phase !== 'prep' && G.phase !== 'night') { G.mode = null; hint('') } }
     $('#autoPace').checked = !!G.auto;
+    if (old && G.alarm && !prevAlarm && Game.role === 'def') Sound.siren();
     if (pendingEnter) onFirstSnap();
     uiDirty();
   }
 
   /* ---------- события ---------- */
   function applyEvent(ev) {
-    if (ev.e === 'log') logEvent(ev);
+    if (ev.e === 'log') { logEvent(ev); Sound.onLog(ev) }
     else if (ev.e === 'toast') toast(ev.t, ev.c);
-    else if (ev.e === 'fx') { if (G) fx(ev.o) }
+    else if (ev.e === 'fx') { if (G) { fx(ev.o); Sound.onFx(ev.o) } }
     else if (ev.e === 'modal') { if (ev.html) showModal(ev.html); else hideModal() }
     else if (ev.e === 'clear') clearLogs();
   }
@@ -101,6 +102,7 @@ const Store = (() => {
         if (m.note) toast(m.note, 'i');
         netBar();
         break;
+      case 'save': downloadSave(m.name, m.data); break;
       case 'error':
         toast(m.msg, 'i');
         if (!Game.room) showMenu();

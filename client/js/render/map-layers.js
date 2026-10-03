@@ -24,15 +24,19 @@ function draw(dtms) {
   }
   drawGrid(s);
   MODE.render.zones(s);
+  drawWeather(s);
   drawNames(s);
   if (G.showZones || G.sel) MODE.render.engagement(s);
   drawObjects(s);
   MODE.render.hq(s);
   MODE.render.tracks(s);
   MODE.render.units(s);
+  drawFires(s);
   drawMissiles(s);
   MODE.render.threats(s);
   drawFx(s);
+  drawPrecip(dtms);
+  drawWindRose();
   drawOverlay(s);
   if (MODE.render.plan) MODE.render.plan(s);
 }
@@ -115,8 +119,9 @@ function drawObjects(s) {
       cx.fillStyle = o.hp <= 0 ? '#ff8f80' : '#e6eef2';
       cx.fillText(o.n, q.x, q.y - L * .66);
     }
-    if (o.hitT > G.t - 120 && G.phase === 'night') {
-      const k = 1 - (G.t - o.hitT) / 120;
+    const hitAge = G.t - o.hitT;
+    if (hitAge >= 0 && hitAge < 120 && G.phase === 'night') {
+      const k = 1 - hitAge / 120;
       cx.strokeStyle = `rgba(255,90,60,${k * .8})`;
       cx.lineWidth = 2;
       cx.beginPath(); cx.arc(q.x, q.y, L * .62 + (1 - k) * 26, 0, 7); cx.stroke();
@@ -243,4 +248,35 @@ function drawOverlay(s) {
     cx.fillStyle = '#ffd479';
     cx.fillText(txt, CW / 2, 29);
   }
+}
+
+/* пожары на объектах и технике: мерцающее зарево и языки пламени */
+function drawFires(s) {
+  const list = [];
+  for (const o of G.objs) if (o.fire > 0) list.push([o, o.fire, 1]);
+  for (const u of G.units) if (u.fire > 0) list.push([u, u.fire, .55]);
+  if (!list.length) return;
+  cx.save();
+  cx.globalCompositeOperation = 'lighter';
+  for (const [p, f, k] of list) {
+    const q = w2s(p);
+    if (!onScreen(q, 80)) continue;
+    const flick = .8 + .2 * Math.sin(ANIM * 9 + p.x) * Math.sin(ANIM * 5.3 + p.y);
+    const r = (10 + f * 26) * k * clamp(s / 3, .6, 1.8) * flick;
+    const g = cx.createRadialGradient(q.x, q.y, 0, q.x, q.y, r);
+    g.addColorStop(0, `rgba(255,190,90,${.55 * f + .15})`);
+    g.addColorStop(.4, `rgba(255,110,40,${.35 * f + .1})`);
+    g.addColorStop(1, 'rgba(255,60,20,0)');
+    cx.fillStyle = g;
+    cx.fillRect(q.x - r, q.y - r, r * 2, r * 2);
+    /* языки пламени */
+    const n = 2 + Math.round(f * 4);
+    for (let i = 0; i < n; i++) {
+      const ph = ANIM * 3 + i * 2.1 + p.x;
+      const fx0 = q.x + Math.sin(ph) * r * .3, fy0 = q.y - ((ANIM * 18 + i * 7) % (r * .9));
+      cx.fillStyle = `rgba(255,${150 + (i * 23) % 80},60,${.5 * f})`;
+      cx.beginPath(); cx.arc(fx0, fy0, 1.5 + f * 2.5, 0, 7); cx.fill();
+    }
+  }
+  cx.restore();
 }

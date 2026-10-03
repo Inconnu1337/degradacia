@@ -40,7 +40,7 @@ function descOrder(o) {
     case 'cover': return 'прикрыть «' + o.obj.n + '»';
     case 'assign': return 'уничтожить цель (' + thLabel(o.th) + ')';
     case 'reload': return 'пополнить боекомплект';
-    case 'patrol': return 'патрулирование, кв. ' + sq(o.p);
+    case 'patrol': return 'патруль, сектор ' + patrolName(o);
     case 'rtb': return 'возврат на площадку';
     case 'cancel': return 'отставить';
     case 'cb': return o.d || 'ответ';
@@ -95,6 +95,9 @@ function garble(p) {
 
 /* ---------- живые формулировки, зависят от характера ---------- */
 function lineFor(u, kind, a) {
+  if (kind === 'move' && chance(.5)) return pick([`Принял, ${a.sq}. Марш ~${a.eta}.`, `Есть ${a.sq}, выдвигаемся. Будем через ~${a.eta}.`,
+    `Понял, квадрат ${a.sq}. Сворачиваемся и выходим.`, `Принял. Колонна на ${a.sq}, ~${a.eta}.`]);
+  if (kind === 'ok' && chance(.5)) return pick(['Принято.', 'Понял, работаем.', 'Есть, выполняем.', 'Так точно.']);
   const tr = u.crew.trait;
   const L = {
     move: {
@@ -274,6 +277,7 @@ function receive(u, o) {
     }
     case 'patrol': {
       if (!T.air) return;
+      if (!G.weather.heli) { say(u, `Погода нелётная (${G.weather.n.toLowerCase()}). Взлёт невозможен.`, 'w'); return }
       if (side(o.p.x, o.p.y) !== 1) { say(u, 'Район патрулирования не на нашей территории, уточните.', 'w'); return }
       if (u.fuel < 900 && !sk.x) {
         ask(u, `Топлива на ${fmtDur(u.fuel)}. До района ещё лететь. Идти или сначала дозаправка?`,
@@ -281,13 +285,15 @@ function receive(u, o) {
           { l: 'На дозаправку', f: () => receive(u, { t: 'rtb' }) }], 1, 'fuel');
         return;
       }
-      u.patrol = { x: o.p.x, y: o.p.y }; u.st = 'air'; u.dest = { x: o.p.x, y: o.p.y };
-      say(u, `Взлетаем, район ${sq(o.p)}. В воздухе ${fmtDur(u.fuel)}.`);
+      u.patrol = { x: o.p.x, y: o.p.y, obj: o.obj || null, uid: o.uid || null, keep: true };
+      u.st = 'air'; u.dest = null; u.rtb = 0; u.chase = null;
+      say(u, `Взлетаем, сектор: ${patrolName(u.patrol)}. Работаем сами: ищем и бьём мелочь, на заправку и обратно. В воздухе ${fmtDur(u.fuel)}.`);
       break;
     }
     case 'rtb': {
       if (!T.air) return;
-      u.patrol = null; u.dest = { ...u.base }; u.st = 'air'; u.rtb = 1;
+      u.patrol = null; u.chase = null; u.dest = { ...u.base }; u.rtb = 1;
+      if (u.st !== 'air') { u.rtb = 0; u.dest = null; say(u, 'Мы на площадке, задача снята.'); break }
       say(u, 'Возвращаемся на площадку.');
       break;
     }
@@ -316,8 +322,8 @@ function nearSupport(u, kind) {
 function reloadCost(u) {
   const T = UT[u.k];
   if (!T.w) return 0;
-  let c = T.w.mc ? (T.w.am - u.am) * T.w.mc : (T.rl.c || 0);
-  if (nearSupport(u, 'reload')) c *= .8;
+  let c = (T.w.mc ? (T.w.am - u.am) * T.w.mc : (T.rl.c || 0)) * RELOAD_MUL;
+  if (nearSupport(u, 'reload')) c *= .75;
   return c;
 }
 
@@ -343,6 +349,11 @@ function prepExec(u, o) {
     u.x = o.p.x; u.y = o.p.y; u.moved = true; markSpot(u);
     if (T.air) u.base = { x: o.p.x, y: o.p.y };
   }
+  else if (o.t === 'patrol' && T.air) {
+    u.patrol = { x: o.p.x, y: o.p.y, obj: o.obj || null, uid: o.uid || null, keep: true };
+    hq(`«${esc(u.crew.cs)}»: задача на ночь — патруль, сектор ${patrolName(u.patrol)}. Взлёт с началом дежурства.`, 'g');
+  }
+  else if (o.t === 'rtb' && T.air) { u.patrol = null; hq(`«${esc(u.crew.cs)}»: задача патруля снята.`, 'm') }
   else if (o.t === 'radar') u.radar = o.v;
   else if (o.t === 'roe') u.roe = o.v;
   else if (o.t === 'cover') u.cover = o.obj.id;

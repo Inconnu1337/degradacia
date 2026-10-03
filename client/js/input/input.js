@@ -146,6 +146,7 @@ function initInput() {
       case 'final': cmd('final'); break;
       case 'restart': hideModal(); cmd('restart'); lastRC = ''; break;
       case 'reopen': cmd('reopen'); break;
+      case 'wx': weatherModal(); break;
       case 'col': {
         const pn = $('#' + v);
         pn.classList.toggle('col');

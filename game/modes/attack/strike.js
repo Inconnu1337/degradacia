@@ -71,11 +71,15 @@ function launchStrike(p) {
   if (when + (Math.min(n, E.stock[k]) - 1) * spacing > NIGHT_LEN - 900)
     return fail(busy ? `Пусковые района «${zone.n}» заняты до ${clock(when)}: до рассвета пакет не успеет` : 'До рассвета этот пуск не успевает');
 
+  if (TT[k].rc && !G.weather.fpv) return fail(`Погода нелётная для FPV: ${G.weather.n.toLowerCase()}`);
+  /* FPV летит недалеко: цель должна быть в пределах дальности от района пуска */
+  if (TT[k].range && !patrol && dist(zone, aimOf(tgt)) > TT[k].range - 4)
+    return fail(`Далеко: «${TT[k].n}» летит не дальше ${TT[k].range} км от района пуска`);
   /* маршрут: точки игрока, иначе то, что он видел в предпросмотре, иначе автомаршрут */
   const ball = !patrol && isBallistic(k);
   if (!ball) {
     const aim = patrol ? null : aimOf(tgt);
-    const route = wps.length ? (patrol ? wps : [...wps, aim]) : netPath(p.route, 40);
+    const route = wps.length ? (patrol ? wps : [...wps, aim]) : TT[k].range ? [aim] : netPath(p.route, 40);
     ROUTE_OVERRIDE = route.length ? route : null;
   }
   if (patrol) {
@@ -115,7 +119,8 @@ function atkLaunchNote(q) {
   const g = E.groups.find(x => x.id === q.gid);
   if (!g || g._noted) return;
   g._noted = 1;
-  hq(`В воздухе: ${g.n}× ${TT[q.k].n} из района «${g.zone.n}».`, 'hq');
+  hq(pick([`В воздухе: ${g.n}× ${TT[q.k].n} из района «${g.zone.n}».`, `Пусковые «${g.zone.n}»: пакет ушёл, ${g.n}× ${TT[q.k].n}.`,
+    `Старт подтверждаю: ${TT[q.k].n}, ${g.n} шт., район «${g.zone.n}».`, `Расчёты «${g.zone.n}» докладывают: пуск ${g.n}× ${TT[q.k].n}.`]), 'hq');
 }
 
 function atkLoss(th) {
@@ -124,12 +129,48 @@ function atkLoss(th) {
   if (G.t - (G.lossT || -999) < 20) return;
   G.lossT = G.t;
   const parts = Object.entries(G.lossN).map(([k, n]) => n + '× ' + TT[k].n);
-  hq('Их ПВО сбивает: ' + parts.join(', ') + '.', 'w');
+  hq(pick(['Их ПВО сбивает: ', 'Телеметрия пропала: ', 'Потери на маршруте: ', 'Связь с бортами потеряна: ']) + parts.join(', ') + '.', 'w');
   G.lossN = {};
 }
 
 function atkEw(th) {
   if (G.t - (G.ewT || -999) < 45) return;
   G.ewT = G.t;
-  hq(`«${TT[th.k].n}» сошёл с маршрута: работает их РЭБ.`, 'w');
+  hq(pick([`«${TT[th.k].n}» сошёл с маршрута: работает их РЭБ.`, `РЭБ противника: «${TT[th.k].n}» потерял спутники.`,
+    `«${TT[th.k].n}» уходит с курса — глушат.`, `Сбой навигации у «${TT[th.k].n}», похоже на их «Туман».`]), 'w');
+}
+
+/* ---------- перенацеливание в полёте ----------
+   Средства с каналом связи (TT[k].retarget: «Шершень», «Стриж», «Кречет», FPV)
+   можно развернуть на новую цель уже после пуска. Сеанс связи с пакетом —
+   не чаще раза в RETARGET_GAP секунд; борта, потерявшие навигацию от РЭБ,
+   команду не принимают. Невыпущенная часть пакета тоже уйдёт на новую цель. */
+const RETARGET_GAP = 600;
+
+function retargetGroup(id, t) {
+  const fail = error => { toast(error, 'i'); return { ok: false, error } };
+  if (G.phase !== 'night') return fail('Перенацеливать можно только ночью');
+  const g = E.groups.find(x => x.id === id);
+  if (!g) return fail('Нет такого пакета');
+  const T = TT[g.kind];
+  if (!T.retarget) return fail(`«${T.n}» не имеет канала управления: летит по заложенной программе`);
+  if (G.t - (g.retT || -1e9) < RETARGET_GAP) return fail(`Следующий сеанс связи с пакетом через ${fmtDur(RETARGET_GAP - (G.t - g.retT))}`);
+  let tgt = null;
+  if (t && t.obj != null) { const o = objById(String(t.obj)); if (o && o.hp > 0) tgt = { obj: o } }
+  else if (t && t.aim) { const a = netPoint(t.aim); if (a) tgt = { aim: { x: a.x, y: a.y, uid: t.aim.uid != null ? +t.aim.uid : undefined } } }
+  if (!tgt) return fail('Укажите новую цель на карте');
+  const aim = aimOf(tgt);
+  let n = 0, deaf = 0;
+  for (const th of G.threats) {
+    if (th.dead || th.gid !== id) continue;
+    if (th.lost) { deaf++; continue }
+    if (T.range && (th.flown || 0) + dist(th, aim) > T.range) { deaf++; continue }
+    th.tgt = tgt; th.path = [{ x: aim.x, y: aim.y }]; th.retgt = 1; th.hunt = null;
+    n++;
+  }
+  for (const q of E.queue) if (q.gid === id) { q.tgt = tgt; q.path = [{ x: aim.x, y: aim.y }]; n++ }
+  if (!n) return fail(deaf ? 'Борта пакета не отвечают: РЭБ или не хватит дальности' : 'В пакете нет бортов на связи');
+  g.tgt = tgt; g.retT = G.t;
+  hq(`Перенацелено: ${n}× ${T.n} → ${tgt.obj ? '«' + tgt.obj.n + '»' : 'кв. ' + sq(aim)}.${deaf ? ' Не ответили: ' + deaf + '.' : ''}`, 'hq');
+  return { ok: true, n };
 }

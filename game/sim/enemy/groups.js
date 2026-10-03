@@ -57,23 +57,7 @@ function intelFor(g) {
   else if (k === 'sova') {
     intelAt(g.launch + R(300, 900), `Отмечен выход разведывательного БпЛА, район ${z.n}.`, 'C-3', '', .5);
   }
-  else if (k === 'krechet') {
-    intelAt(g.launch - R(3, 6) * 3600, `В море вышли носители крылатых ракет (${z.n}). Суммарный залп — до ${g.n + RI(0, 4)} ед.`, 'B-2', '', .9);
-    intelAt(g.launch + R(30, 120), `Пуски КР «Кречет-М» из акватории (${z.n}), ориентировочно ${approx(g.n)}.`, 'A-2', 'w', .92);
-  }
-  else if (k === 'albatros') {
-    intelAt(g.launch - R(3, 4) * 3600, `Взлёт ${Math.ceil(g.n / 6) + RI(0, 2)} бортов стратегической авиации, ${AIRBASE_E}.`, 'A-1', '', .95);
-    intelAt(g.launch - R(40, 70) * 60, 'Борта стратегической авиации выходят к рубежу пусков.', 'B-2', '', .8);
-    intelAt(g.launch + R(60, 200), `Зафиксированы пуски КР «Альбатрос» с рубежа «Восход»: ~${approx(g.n)}.`, 'A-1', 'w', .95);
-  }
-  else if (k === 'molot') {
-    intelAt(g.launch - R(15, 45) * 60, `Радиоперехват: активность расчётов ОТРК, район ${z.n}.`, 'C-3', '', .45);
-    intelAt(g.launch + R(3, 10), `ПУСК БАЛЛИСТИКИ, район ${z.n}! Ракет: ${g.n}. Подлёт ≈ ${fl} мин.`, 'A-1', 'crit', .97);
-  }
-  else if (k === 'garpia') {
-    intelAt(g.launch - R(15, 30) * 60, 'Взлёт носителей аэробаллистических ракет «Гарпия».', 'A-2', 'w', .85);
-    intelAt(g.launch + R(3, 8), `ПУСК «ГАРПИИ»! Подлёт ≈ ${fl} мин.`, 'A-1', 'crit', .95);
-  }
+  else if (k === 'krechet' || k === 'albatros' || k === 'molot' || k === 'garpia') carrierIntel(k, z, g.launch, g.n, g.arrive, false);
 }
 
 function flushWaveIntel() {

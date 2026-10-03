@@ -7,7 +7,11 @@
 const AttackRadio = (() => {
   function say() {}
 
-  function intelAt() {}
+  /** ИИ-штаб ПВО тоже получает разведку: тревожные сводки (носители в воздухе, пуски) он запоминает */
+  function intelAt(t, txt, gr, cls, ch) {
+    if (ch !== undefined && Math.random() > ch) return;
+    if (cls === 'w' || cls === 'crit') (G.botIntel = G.botIntel || []).push(t);
+  }
 
   function mind(txt) {
     if (S) S.mind.push({ t: G.t, txt });
