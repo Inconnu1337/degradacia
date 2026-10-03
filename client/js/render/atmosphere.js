@@ -6,6 +6,15 @@
    дрожь от близких разрывов · плашка подлёта баллистики
    ============================================================ */
 
+/* ---------- настройки экрана (окно 🔊 → «Экран»), хранятся в localStorage ---------- */
+const SCREEN = { grain: true, vignette: true, shake: true, sweep: true };
+try { Object.assign(SCREEN, JSON.parse(localStorage.getItem('nr.screen') || '{}')) } catch (e) { /* без настроек */ }
+function setScreen(k, v) {
+  SCREEN[k] = v;
+  try { localStorage.setItem('nr.screen', JSON.stringify(SCREEN)) } catch (e) { /* приватный режим */ }
+  if (k === 'shake' && !v) { SHAKE = 0; const el = document.getElementById('map'); if (el) el.style.transform = '' }
+}
+
 /* районы городов: постоянные точки огней вокруг центра (свой «сид» на город) */
 const CITY_LIGHTS = new Map();
 function cityLights(c) {
@@ -92,10 +101,10 @@ function drawCityLights(s) {
   cx.restore();
 }
 
-/** развёртка радара от штаба (ПВО) или от центра края (налёт) — едва заметная */
+/** развёртка радара от штаба — только у ПВО: у налёта своего радара над краем нет */
 function drawRadarSweep(s) {
-  if (G.phase !== 'night') return;
-  const c = Game.role === 'def' && G.hq ? G.hq : { x: WW * .45, y: WH * .45 };
+  if (G.phase !== 'night' || !SCREEN.sweep || Game.role !== 'def' || !G.hq) return;
+  const c = G.hq;
   const q = w2s(c), R = 180 * s, a = GANIM * .9 % 6.283;
   cx.save();
   clipMap();
@@ -125,13 +134,16 @@ function grainTile() {
 
 /** «экран штаба»: виньетка, лёгкое зерно, тонкие строки развёртки */
 function drawScreenFX() {
+  if (!SCREEN.vignette && !SCREEN.grain) return;
   cx.save();
+  if (SCREEN.vignette) {
   const v = cx.createRadialGradient(CW / 2, CH / 2, Math.min(CW, CH) * .35, CW / 2, CH / 2, Math.max(CW, CH) * .75);
   v.addColorStop(0, 'rgba(0,0,0,0)');
   v.addColorStop(1, 'rgba(0,0,0,.42)');
   cx.fillStyle = v;
   cx.fillRect(0, 0, CW, CH);
-  const t = grainTile();
+  }
+  const t = SCREEN.grain ? grainTile() : null;
   if (t && cx.createPattern) {
     const p = cx.createPattern(t, 'repeat');
     if (p) {
@@ -152,7 +164,7 @@ function shakeFrom(o) {
   const far = Math.hypot((q.x - CW / 2) / (CW / 2), (q.y - CH / 2) / (CH / 2));
   const zoom = clamp((G.view.s - 1.4) / 7, 0, 1);
   const k = clamp(1 - far, 0, 1) * (.3 + .7 * zoom) * (o.small ? .4 : 1);
-  if (k > .15) SHAKE = Math.max(SHAKE, k * 7);
+  if (k > .15 && SCREEN.shake) SHAKE = Math.max(SHAKE, k * 7);
 }
 function applyShake(dtms) {
   const el = document.getElementById('map');

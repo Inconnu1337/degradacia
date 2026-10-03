@@ -25,10 +25,23 @@ const WX_PUFFS = (() => {
 })();
 
 
-function drawWeather(s) {
+/**
+ * как погода выглядит сейчас: во время смены — смесь прежней и новой
+ * (облачность, дымка, сила осадков плавно перетекают)
+ */
+function wxLook() {
   const w = G.weather;
-  if (!w) return;
-  const L = WX_LOOK[w.vis] || WX_LOOK.clear;
+  if (!w) return null;
+  const T = G.wxTrans;
+  if (!T) { const L = WX_LOOK[w.vis] || WX_LOOK.clear; return { cloud: L.cloud, haze: L.haze, rain: L.rain ? 1 : 0, snow: L.snow ? 1 : 0 } }
+  const a = WX_LOOK[wxById(T.from).vis] || WX_LOOK.clear, b = WX_LOOK[wxById(T.to).vis] || WX_LOOK.clear;
+  const k = clamp((G.t - T.t0) / (T.t1 - T.t0), 0, 1), m = (x, y) => (x || 0) + ((y || 0) - (x || 0)) * k;
+  return { cloud: m(a.cloud, b.cloud), haze: m(a.haze, b.haze), rain: m(a.rain ? 1 : 0, b.rain ? 1 : 0), snow: m(a.snow ? 1 : 0, b.snow ? 1 : 0) };
+}
+
+function drawWeather(s) {
+  const L = wxLook();
+  if (!L) return;
   const wind = G.wind || { a: 0, v: 0 };
   const wx = Math.cos(wind.a), wy = Math.sin(wind.a);
   /* погода — только над картой края */
@@ -72,14 +85,17 @@ let WX_DROPS = [];
 
 /** осадки поверх всего; на паузе замирают */
 function drawPrecip(dtms) {
-  const w = G.weather;
-  const L = w && (WX_LOOK[w.vis] || WX_LOOK.clear);
-  if (!L || (!L.rain && !L.snow)) { WX_DROPS = []; return }
+  const W = wxLook();
+  if (!W || (W.rain < .02 && W.snow < .02)) { WX_DROPS = []; return }
+  /* в переходе — дождь или снег, смотря что сильнее; густота по силе осадков */
+  const L = { rain: W.rain >= W.snow, snow: W.snow > W.rain };
+  const amt = Math.max(W.rain, W.snow);
   const s = G.view.s, wind = G.wind || { a: 0, v: 0 };
   /* видимая область карты в км */
   const a = s2w({ x: 0, y: 0 }), b = s2w({ x: CW, y: CH });
   const vw = b.x - a.x, vh = b.y - a.y;
-  const n = L.rain ? 170 : 120;
+  const n = Math.round((L.rain ? 170 : 120) * amt);
+  if (WX_DROPS.length > n) WX_DROPS.length = n;
   while (WX_DROPS.length < n) WX_DROPS.push({ x: a.x + Math.random() * vw, y: a.y + Math.random() * vh, z: .5 + Math.random() * .5, ph: Math.random() * 9 });
   const k = worldRuns() ? dtms / 1000 : 0;
   /* скорость падения задана в пикселях экрана — переводим в км текущего масштаба */

@@ -40,14 +40,34 @@ function forecastText() {
   return s;
 }
 
-/** ночь: смена погоды по плану */
+/** длительность смены погоды: фронт подходит час и столько же уходит прежняя погода */
+const WX_FRONT = 3600;
+
+/**
+ * ночь: смена погоды по плану — не скачком. За час до срока метеослужба
+ * предупреждает о фронте, ветер начинает плавно меняться, картинка на карте
+ * перетекает (G.wxTrans), а правила погоды переключаются в середине перехода.
+ */
 function weatherStep() {
-  if (!G.wxNext || G.t < G.wxNext.t) return;
+  const T = G.wxTrans;
+  if (T) {
+    const k = clamp((G.t - T.t0) / (T.t1 - T.t0), 0, 1);
+    const sm = k * k * (3 - 2 * k);
+    const ax = Math.cos(T.w0.a) * T.w0.v * (1 - sm) + Math.cos(T.w1.a) * T.w1.v * sm;
+    const ay = Math.sin(T.w0.a) * T.w0.v * (1 - sm) + Math.sin(T.w1.a) * T.w1.v * sm;
+    G.wind = { a: Math.atan2(ay, ax), v: Math.max(0, Math.round(Math.hypot(ax, ay))) };
+    if (G.t >= T.t1) G.wxTrans = null;
+  }
+  if (!G.wxNext) return;
   const w = wxById(G.wxNext.id);
+  if (!G.wxTrans && G.t >= G.wxNext.t - WX_FRONT) {
+    G.wxTrans = { from: G.weather.id, to: w.id, t0: G.t, t1: G.wxNext.t + WX_FRONT, w0: { ...G.wind }, w1: rollWind(w, G.wind) };
+    hqAll(`Метео: с ${pick(['запада', 'юго-запада', 'севера', 'северо-запада'])} подходит фронт — через час ${w.n.toLowerCase()}.`, 'm');
+  }
+  if (G.t < G.wxNext.t) return;
   G.wxNext = null;
   G.weather = w;
-  G.wind = rollWind(w, G.wind);
-  hqAll(`Метео: ${w.n.toLowerCase()}, ветер ${G.wind.v} м/с. ${w.d}`, 'w');
+  hqAll(`Метео: ${w.n.toLowerCase()}. ${w.d}`, 'w');
   if (!w.heli) for (const u of G.units) if (UT[u.k].air && u.st === 'air' && !u.rtb) {
     u.rtb = 1; u.dest = { ...u.base };
     say(u, 'Погода нелётная, возвращаемся на площадку.', 'w');

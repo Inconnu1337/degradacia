@@ -384,30 +384,119 @@ const Sound = (() => {
   }
 
   /* ---------- музыка ---------- */
-  const PROG_DAY = [[57, 60, 64, 67], [53, 57, 60, 64], [48, 55, 60, 64], [55, 59, 62, 67]];
-  const PROG_NIGHT = [[50, 57, 60, 65], [46, 53, 58, 62], [41, 48, 57, 60], [48, 55, 58, 63]];
+  /* ---------- музыка: набор треков ----------
+     Каждый трек — лад, тональность, темп, гармония и набор «инструментов».
+     Трек играет 16–32 тактов и плавно уступает место следующему из той же
+     группы настроения (день · тихая ночь · волна · рассвет). Смена
+     настроения ночи — быстрый кроссфейд на трек нужной группы. */
   const midi = n => 440 * Math.pow(2, (n - 69) / 12);
+  const SCALES = {
+    minor: [0, 2, 3, 5, 7, 8, 10], major: [0, 2, 4, 5, 7, 9, 11], dorian: [0, 2, 3, 5, 7, 9, 10],
+    phrygian: [0, 1, 3, 5, 7, 8, 10], lydian: [0, 2, 4, 6, 7, 9, 11], aeolian: [0, 2, 3, 5, 7, 8, 10]
+  };
+  /* prog — ступени лада (0 — тоника), по одному аккорду на такт; inst — какие голоса звучат */
+  const TRACKS = [
+    { n: 'Штаб днём', mood: 'day', root: 48, sc: 'lydian', bpm: 72, prog: [0, 4, 5, 3], inst: ['pad', 'piano', 'bass'] },
+    { n: 'Карта края', mood: 'day', root: 45, sc: 'dorian', bpm: 84, prog: [0, 3, 6, 4], inst: ['arpSlow', 'bell', 'pad'] },
+    { n: 'Сводки', mood: 'day', root: 50, sc: 'major', bpm: 66, prog: [0, 5, 3, 4], inst: ['piano', 'strings'] },
+    { n: 'Тихое небо', mood: 'calm', root: 50, sc: 'minor', bpm: 58, prog: [0, 5, 3, 6], inst: ['pad', 'bellSparse', 'drone'] },
+    { n: 'Дежурство', mood: 'calm', root: 52, sc: 'aeolian', bpm: 70, prog: [0, 6, 5, 4], inst: ['arpSlow', 'strings', 'bass'] },
+    { n: 'Огни края', mood: 'calm', root: 42, sc: 'dorian', bpm: 54, prog: [0, 3, 0, 4], inst: ['piano', 'drone', 'pad'] },
+    { n: 'Эфир', mood: 'calm', root: 47, sc: 'phrygian', bpm: 62, prog: [0, 1, 0, 6], inst: ['bellSparse', 'strings', 'drone'] },
+    { n: 'Волна', mood: 'raid', root: 48, sc: 'minor', bpm: 96, prog: [0, 0, 5, 6], inst: ['ostinato', 'strings', 'bass8', 'pulse'] },
+    { n: 'Перехват', mood: 'raid', root: 50, sc: 'phrygian', bpm: 104, prog: [0, 1, 0, 6], inst: ['arpFast', 'bass8', 'pulse', 'drone'] },
+    { n: 'Пуск', mood: 'raid', root: 45, sc: 'minor', bpm: 90, prog: [0, 6, 5, 4], inst: ['ostinato', 'pad', 'pulse'] },
+    { n: 'Рассвет', mood: 'dawn', root: 55, sc: 'major', bpm: 66, prog: [0, 3, 4, 0], inst: ['strings', 'bell', 'piano'] },
+    { n: 'Отбой', mood: 'dawn', root: 52, sc: 'lydian', bpm: 60, prog: [0, 1, 4, 0], inst: ['pad', 'arpSlow'] }
+  ];
+  const MOOD_OF = { day: 'day', calm: 'calm', contact: 'calm', after: 'calm', raid: 'raid', dawn: 'dawn' };
 
   function startMusic() {
-    const lp = filt('lowpass', 1400, .3), g = ac.createGain(), w = ac.createGain();
-    g.gain.value = .5; w.gain.value = .8;
+    const lp = filt('lowpass', 2600, .3), g = ac.createGain(), w = ac.createGain();
+    g.gain.value = .6; w.gain.value = .7;
     lp.connect(g); g.connect(bus.music); g.connect(w); w.connect(verb);
-    mus = { lp, i: 0, next: ac.currentTime + 1, beat: ac.currentTime + 1, tension: 0 };
+    mus = { lp, cur: null, last: null, tension: 0 };
   }
 
-  function chord(notes, t, dur) {
-    for (const n of notes) for (const det of [-6, 5]) {
-      const o = ac.createOscillator(); o.type = n < 52 ? 'triangle' : 'sine';
-      o.frequency.value = midi(n - 12 * (n > 64 ? 1 : 0)); o.detune.value = det + Math.random() * 3;
-      const g = ac.createGain();
-      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.032, t + dur * .35);
-      g.gain.linearRampToValueAtTime(.022, t + dur * .7); g.gain.linearRampToValueAtTime(0, t + dur + 2.5);
-      o.connect(g); g.connect(mus.lp); o.start(t); o.stop(t + dur + 2.6);
+  /** ноты аккорда: ступень лада → четыре звука (терции вверх) */
+  function chordNotes(tr, deg) {
+    const S = SCALES[tr.sc], out = [];
+    for (let k = 0; k < 4; k++) {
+      const i = deg + k * 2;
+      out.push(tr.root + S[i % 7] + 12 * Math.floor(i / 7));
     }
-    if (Math.random() < .55) {
-      const top = notes[(Math.random() * notes.length) | 0] + 12;
-      tone(mus.lp, t + dur * (.3 + Math.random() * .4), 3.5, { f0: midi(top), vol: .016, att: .8 });
+    return out;
+  }
+
+  /* инструменты: каждый рисует такт начиная с t, длительностью bar, на выход o */
+  function vPad(o, t, d, n, vol) {
+    for (const det of [-7, 6]) {
+      const x = ac.createOscillator(), g = ac.createGain(), f = filt('lowpass', 1100, .4);
+      x.type = 'sawtooth'; x.frequency.value = midi(n); x.detune.value = det;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + d * .4); g.gain.linearRampToValueAtTime(0, t + d + 1.2);
+      x.connect(f); f.connect(g); g.connect(o); x.start(t); x.stop(t + d + 1.3);
     }
+  }
+  function vPluck(o, t, n, vol, dec) {
+    const x = ac.createOscillator(), x2 = ac.createOscillator(), g = ac.createGain();
+    x.type = 'triangle'; x2.type = 'sine'; x.frequency.value = midi(n); x2.frequency.value = midi(n) * 2.01;
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .006); g.gain.exponentialRampToValueAtTime(.0001, t + dec);
+    const g2 = ac.createGain(); g2.gain.value = .25;
+    x.connect(g); x2.connect(g2); g2.connect(g); g.connect(o);
+    x.start(t); x2.start(t); x.stop(t + dec + .05); x2.stop(t + dec + .05);
+  }
+  function vBell(o, t, n, vol) {
+    tone(o, t, 3.5, { f0: midi(n), vol, att: .004 });
+    tone(o, t, 2.2, { f0: midi(n) * 2.76, vol: vol * .35, att: .004 });
+  }
+  function vString(o, t, d, n, vol) {
+    const x = ac.createOscillator(), g = ac.createGain(), f = filt('lowpass', 1500, .5), lfo = ac.createOscillator(), lg = ac.createGain();
+    x.type = 'sawtooth'; x.frequency.value = midi(n);
+    lfo.frequency.value = 5; lg.gain.value = 3; lfo.connect(lg); lg.connect(x.detune);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + d * .3); g.gain.setValueAtTime(vol, t + d * .8); g.gain.linearRampToValueAtTime(0, t + d + .6);
+    x.connect(f); f.connect(g); g.connect(o); x.start(t); lfo.start(t); x.stop(t + d + .7); lfo.stop(t + d + .7);
+  }
+  function vKick(o, t, vol) { tone(o, t, .45, { f0: 70, f1: 38, vol, att: .004 }) }
+
+  function playBar(tr, bar, t) {
+    const o = tr.out, beat = 60 / tr.bpm, B = beat * 4;
+    const ch = chordNotes(tr, tr.prog[bar % tr.prog.length]);
+    const R = (a, b) => a + Math.random() * (b - a);
+    for (const inst of tr.inst) {
+      if (inst === 'pad') for (const n of ch.slice(0, 3)) vPad(o, t, B, n, .018);
+      else if (inst === 'strings') { vString(o, t, B, ch[0] - 12, .02); vString(o, t, B, ch[2], .012) }
+      else if (inst === 'drone' && bar % 2 === 0) vString(o, t, B * 2, tr.root - 12, .022);
+      else if (inst === 'bass') vPluck(o, t, ch[0] - 12, .07, B * .9);
+      else if (inst === 'bass8') for (let i = 0; i < 8; i++) vPluck(o, t + i * beat / 2, ch[0] - 12, i % 2 ? .035 : .06, beat * .45);
+      else if (inst === 'piano') {
+        /* мелодия по аккорду: 2–4 ноты в такте, случайный ритм */
+        const k = 2 + (Math.random() * 3 | 0);
+        for (let i = 0; i < k; i++) vPluck(o, t + Math.floor(R(0, 8)) * beat / 2, ch[(Math.random() * 4) | 0] + 12, .045, 2.2);
+        vPluck(o, t, ch[0], .04, 2.5);
+      }
+      else if (inst === 'arpSlow') for (let i = 0; i < 4; i++) vPluck(o, t + i * beat, ch[[0, 1, 2, 1][i]] + 12, .035, beat * 1.6);
+      else if (inst === 'arpFast') for (let i = 0; i < 16; i++) vPluck(o, t + i * beat / 4, ch[[0, 1, 2, 3, 2, 1, 2, 3][i % 8]] + 12, .022, beat * .5);
+      else if (inst === 'ostinato') for (let i = 0; i < 8; i++) vPluck(o, t + i * beat / 2, ch[i % 2 ? 2 : 0], .03, beat * .4);
+      else if (inst === 'bell' && Math.random() < .7) vBell(o, t + Math.floor(R(0, 4)) * beat, ch[(Math.random() * 3) | 0] + 24, .014);
+      else if (inst === 'bellSparse' && Math.random() < .35) vBell(o, t + Math.floor(R(0, 4)) * beat, ch[(Math.random() * 3) | 0] + 24, .012);
+      else if (inst === 'pulse') for (let i = 0; i < 4; i++) { vKick(o, t + i * beat, i % 2 ? .05 : .08); if (i === 3) vKick(o, t + i * beat + beat / 2, .04) }
+    }
+  }
+
+  function startTrack(mood, t, fade) {
+    const pool = TRACKS.filter(x => x.mood === mood && x !== mus.last);
+    const tr = Object.assign({}, pool[(Math.random() * pool.length) | 0] || TRACKS[0]);
+    tr.out = ac.createGain();
+    tr.out.gain.setValueAtTime(0, t); tr.out.gain.linearRampToValueAtTime(1, t + fade);
+    tr.out.connect(mus.lp);
+    tr.bar = 0; tr.next = t + .05; tr.len = 16 + ((Math.random() * 3) | 0) * 8; tr.mood = mood;
+    if (mus.cur) {
+      const old = mus.cur;
+      old.out.gain.setTargetAtTime(0, t, fade / 3);
+      setTimeout(() => old.out.disconnect(), (fade + 6) * 1000);
+    }
+    mus.last = TRACKS.find(x => x.n === tr.n);
+    mus.cur = tr;
   }
 
   /* ---------- драматургия ночи ----------
@@ -494,8 +583,10 @@ const Sound = (() => {
     amb.wind.fl.frequency.setTargetAtTime(220 + wind * 22 * gust, t, 1.5);
     amb.wind2.g.gain.setTargetAtTime(wind >= 10 ? .012 * gust * live : 0, t, .4);
     amb.wind2.fl.frequency.setTargetAtTime(700 + wind * 30 * gust, t, 1);
-    amb.rain.g.gain.setTargetAtTime((vis === 'rain' ? .07 : vis === 'snow' ? .012 : 0) * live, t, .4);
-    amb.drops.g.gain.setTargetAtTime((vis === 'rain' ? .02 : 0) * live, t, .4);
+    const WL = typeof wxLook === 'function' ? wxLook() : null;
+    const rainK = WL ? WL.rain : vis === 'rain' ? 1 : 0, snowK = WL ? WL.snow : vis === 'snow' ? 1 : 0;
+    amb.rain.g.gain.setTargetAtTime((.07 * rainK + .012 * snowK) * live, t, .4);
+    amb.drops.g.gain.setTargetAtTime(.02 * rainK * live, t, .4);
     amb.hum.g.gain.setTargetAtTime(live ? .045 + busy * .05 : 0, t, .6);
     /* днём — тихий «воздух» штаба */
     amb.room.g.gain.setTargetAtTime(night ? .006 : .02, t, 3);
@@ -508,25 +599,16 @@ const Sound = (() => {
     /* двигатели — 10 раз в секунду */
     if (t - engT > .1) { engT = t; if (ready()) engines() }
     else if (!ready()) for (const [id, v] of voices) killVoice(id, v);
-    /* музыка */
-    /* музыка по состоянию ночи: волна — плотнее и быстрее пульс, после волны — редко, рассвет — светло */
-    const stt = D.state;
-    const want = stt === 'raid' ? 1 : stt === 'contact' ? .55 : 0;
-    mus.tension += (want - mus.tension) * .01;
-    mus.lp.frequency.setTargetAtTime(stt === 'dawn' || stt === 'day' ? 1600 : 850 + mus.tension * 600, t, 2);
-    if (t >= mus.next) {
-      const day = stt === 'dawn' || stt === 'day', dur = stt === 'raid' ? 8 : day ? 12 : 10;
-      if (stt === 'after') tone(mus.lp, mus.next, 6, { f0: midi(PROG_NIGHT[mus.i++ % 4][2]), vol: .025, att: 1.5 });
-      else chord((day ? PROG_DAY : PROG_NIGHT)[mus.i++ % 4], mus.next, dur);
-      if (stt === 'raid') tone(mus.lp, mus.next, dur + 2, { f0: midi(26), vol: .05, att: 2, wave: 'triangle' });
-      mus.next += dur;
+    /* музыка: трек по настроению; конец трека или смена настроения — следующий */
+    const mood = MOOD_OF[D.state] || 'calm';
+    if (!mus.cur) startTrack(mood, t + .2, 3);
+    else if (mus.cur.mood !== mood) startTrack(mood, t + .1, mood === 'raid' ? 2.5 : 5);
+    else if (mus.cur.bar >= mus.cur.len) startTrack(mood, mus.cur.next, 6);
+    const tr = mus.cur;
+    while (tr.next < t + .25) {
+      playBar(tr, tr.bar++, tr.next);
+      tr.next += 60 / tr.bpm * 4;
     }
-    if (mus.tension > .15 && G.speed && t >= mus.beat) {
-      const k = mus.tension;
-      tone(bus.music, mus.beat, .5, { f0: 62, f1: 40, vol: .08 * k, att: .01 });
-      tone(bus.music, mus.beat + .28, .4, { f0: 55, f1: 38, vol: .045 * k, att: .01 });
-      mus.beat += 60 / (stt === 'raid' ? 84 : 66);
-    } else if (t >= mus.beat) mus.beat = t + .5;
   }
 
   /* ---------- события игры ---------- */
@@ -553,10 +635,13 @@ const Sound = (() => {
   function set(k, v) { cfg[k] = v; save(); apply() }
 
   function panelHTML() {
+    const scr = (k, n) => `<div class="row"><span>${n}</span><button class="btn sm ${SCREEN[k] ? 'on' : ''}" data-a="scrToggle" data-k="${k}">${SCREEN[k] ? 'вкл' : 'выкл'}</button></div>`;
     const sl = (k, n) => `<div class="row"><span>${n}</span><input type="range" min="0" max="100" value="${Math.round(cfg[k] * 100)}" data-snd="${k}"></div>`;
-    return `<h1>Звук</h1>
+    return `<h1>Звук и экран</h1>
     <div class="row"><span>Звук</span><button class="btn sm ${cfg.on ? 'on' : ''}" data-a="sndToggle">${cfg.on ? 'включён' : 'выключен'}</button></div>
     ${sl('master', 'Общая громкость')}${sl('sfx', 'Бой: разрывы, пуски, очереди')}${sl('eng', 'Двигатели: дроны, ракеты, вертолёты')}${sl('radio', 'Эфир и сводки')}${sl('amb', 'Фон: ветер, дождь, ночь')}${sl('music', 'Музыка')}
+    <h2>Экран</h2>
+    ${scr('grain', 'Зерно (рябь, «шум» экрана)')}${scr('vignette', 'Затемнение по краям')}${scr('shake', 'Дрожь карты от близких разрывов')}${scr('sweep', 'Развёртка радара')}
     <p class="mu">Весь звук синтезируется на лету. Чтобы услышать двигатели, приблизьте карту к цели — далёкое звучит глухо или не слышно.</p>
     <div class="acts"><button class="btn pri" data-a="close">Готово</button></div>`;
   }
@@ -571,6 +656,7 @@ const Sound = (() => {
       if (!el) return;
       if (el.dataset.a === 'sound') { unlock(); showModal(panelHTML()) }
       else if (el.dataset.a === 'sndToggle') { set('on', !cfg.on); showModal(panelHTML()); syncBtn() }
+      else if (el.dataset.a === 'scrToggle') { setScreen(el.dataset.k, !SCREEN[el.dataset.k]); showModal(panelHTML()) }
     });
     syncBtn();
   }

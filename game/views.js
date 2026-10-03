@@ -90,7 +90,8 @@ function commonV(role) {
     mode: MODE.id, humans: MODE.humans, role,
     night: G.night, t: G.t, phase: G.phase, speed: G.speed, chosen: SPEED, time: timeView(role), auto: AUTO[role],
     ready: G.ready, weather: G.weather, wind: G.wind, alarm: G.alarm,
-    forecast: G.wxNext ? { t: G.wxNext.t, n: wxById(G.wxNext.id).n } : null, civTotal: G.civTotal,
+    forecast: G.wxNext ? { t: G.wxNext.t, n: wxById(G.wxNext.id).n } : null,
+    wxTrans: G.wxTrans ? { from: G.wxTrans.from, to: G.wxTrans.to, t0: G.wxTrans.t0, t1: G.wxTrans.t1 } : null, civTotal: G.civTotal,
     over: G.phase === 'debrief' && MODE.campaignOver(),
     objs: G.objs.map(objV), miss: G.miss.map(missV)
   };

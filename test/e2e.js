@@ -16,7 +16,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 /* заглушки браузерных API, которых нет в jsdom: canvas и Web Audio */
 function fakeAudio(w) {
   const param = () => ({ value: 0, setValueAtTime() { }, linearRampToValueAtTime() { }, exponentialRampToValueAtTime() { }, setTargetAtTime() { } });
-  const node = () => new Proxy({ connect() { }, start() { }, stop() { } }, {
+  const node = () => new Proxy({ connect() { }, disconnect() { }, start() { }, stop() { } }, {
     get: (o, k) => k in o ? o[k] : (typeof k === 'string' && /^[a-z]+$/i.test(k) ? (o[k] = param()) : undefined)
   });
   w.AudioContext = class {
