@@ -9,6 +9,7 @@
 function draw(dtms) {
   if (!G) return;
   ANIM += dtms / 1000;
+  if (worldRuns()) GANIM += dtms / 1000;
   const s = G.view.s;
   cx.setTransform(DPR, 0, 0, DPR, 0, 0);
   cx.fillStyle = '#04070a';
@@ -22,7 +23,10 @@ function draw(dtms) {
     cx.drawImage(TER, 0, 0, WW, WH);
     cx.restore();
   }
+  drawNightShade();
+  drawCityLights(s);
   drawGrid(s);
+  drawRadarSweep(s);
   MODE.render.zones(s);
   drawWeather(s);
   drawNames(s);
@@ -36,6 +40,8 @@ function draw(dtms) {
   MODE.render.threats(s);
   drawFx(s);
   drawPrecip(dtms);
+  drawScreenFX();
+  applyShake(dtms);
   drawWindRose();
   drawOverlay(s);
   if (MODE.render.plan) MODE.render.plan(s);
@@ -89,35 +95,28 @@ function drawNames(s) {
 /* защищаемые объекты */
 function drawObjects(s) {
   const selO = G.sel && G.sel.type === 'o' ? G.sel.id : null;
-  const L = clamp(s * 5.5, 26, 130);
+  const L = clamp(s * 5, 40, 120);
   for (const o of G.objs) {
     const q = w2s(o);
     if (!onScreen(q, L)) continue;
     const c = hpCol(o.hp);
-    /* подложка-площадка */
-    cx.save();
-    cx.translate(q.x, q.y);
-    cx.beginPath(); cx.arc(0, 0, L * .62, 0, 7);
-    cx.fillStyle = 'rgba(8,14,20,.45)'; cx.fill();
-    cx.strokeStyle = selO === o.id ? '#f2b33d' : 'rgba(150,170,185,.35)';
-    cx.lineWidth = selO === o.id ? 2 : 1; cx.stroke();
-    if (o.hp <= 0) { cx.globalAlpha = .45 }
-    cx.scale(L, L);
-    (ART_OBJ[o.type] || ART_OBJ.plant)(cx, c);
-    cx.restore();
+    /* плашка с профилем объекта; разрушенный — серый */
+    const W = L * 1.25, H = L * .8;
+    drawPlate(cx, q.x, q.y, W, H, 'rgba(150,170,185,.45)', selO === o.id);
+    drawIcon(cx, o.type, q.x, q.y, W * .88, o.hp <= 0 ? 'dead' : 'obj', false, o.hp <= 0 ? .75 : null);
     /* важность и состояние */
     const bw = Math.max(26, L * .9);
     cx.fillStyle = 'rgba(6,10,14,.75)';
-    cx.fillRect(q.x - bw / 2, q.y + L * .64, bw, 4);
+    cx.fillRect(q.x - bw / 2, q.y + H / 2 + 3, bw, 4);
     cx.fillStyle = c;
-    cx.fillRect(q.x - bw / 2, q.y + L * .64, bw * o.hp / 100, 4);
+    cx.fillRect(q.x - bw / 2, q.y + H / 2 + 3, bw * o.hp / 100, 4);
     if (s > 2.6) {
       cx.font = '600 11px system-ui, sans-serif';
       cx.textAlign = 'center';
       cx.fillStyle = 'rgba(0,0,0,.75)';
-      cx.fillText(o.n, q.x + 1, q.y - L * .66 + 1);
+      cx.fillText(o.n, q.x + 1, q.y - H / 2 - 5 + 1);
       cx.fillStyle = o.hp <= 0 ? '#ff8f80' : '#e6eef2';
-      cx.fillText(o.n, q.x, q.y - L * .66);
+      cx.fillText(o.n, q.x, q.y - H / 2 - 5);
     }
     const hitAge = G.t - o.hitT;
     if (hitAge >= 0 && hitAge < 120 && G.phase === 'night') {
@@ -145,14 +144,14 @@ function drawMissiles(s) {
     if (!onScreen(q, 40)) continue;
     const L = m.kind === 'drone' ? clamp(s * 1.1, 8, 20) : clamp(s * 1.6, 11, 30);
     cx.save(); cx.translate(q.x, q.y); cx.rotate(m.a || 0); cx.scale(L, L);
-    drawOwnMissile(cx, m.kind, ANIM);
+    drawOwnMissile(cx, m.kind, GANIM);
     cx.restore();
   }
 }
 
 /* ---------- эффекты ---------- */
 function drawFx(s) {
-  const now = performance.now();
+  const now = GANIM * 1000;
   G.fx = G.fx.filter(f => now - f.t0 < f.d);
   for (const f of G.fx) {
     const k = (now - f.t0) / f.d;
@@ -201,7 +200,7 @@ function drawFx(s) {
     else if (f.k === 'fire') {
       const a = w2s(f);
       const R0 = clamp(s * 1.3, 8, 34);
-      const pl = .6 + .4 * Math.sin(ANIM * 7 + f.x);
+      const pl = .6 + .4 * Math.sin(GANIM * 7 + f.x);
       cx.fillStyle = `rgba(255,140,50,${(1 - k) * .35 * pl})`;
       cx.beginPath(); cx.arc(a.x, a.y, R0 * pl, 0, 7); cx.fill();
       cx.fillStyle = `rgba(80,70,65,${(1 - k) * .25})`;
@@ -218,7 +217,7 @@ function drawOverlay(s) {
   const steps = [5, 10, 20, 25, 50, 100, 200];
   for (const q of steps) if (q * s <= target * 1.5) km = q;
   const wpx = km * s;
-  const x0 = 16, y0 = CH - 20;
+  const x0 = mapLeft() + 16, y0 = CH - 20;
   cx.strokeStyle = 'rgba(220,230,236,.75)'; cx.lineWidth = 2;
   cx.beginPath(); cx.moveTo(x0, y0); cx.lineTo(x0 + wpx, y0);
   cx.moveTo(x0, y0 - 4); cx.lineTo(x0, y0 + 4);
@@ -250,33 +249,85 @@ function drawOverlay(s) {
   }
 }
 
-/* пожары на объектах и технике: мерцающее зарево и языки пламени */
+/* ---------- пожары ----------
+   Языки пламени (градиент от белёсого ядра к красному краю), мягкое
+   зарево на земле, искры и столб дыма, который сносит ветром.
+   Всё движется по часам мира — на паузе огонь замирает. */
+function flameTongue(x, y, w, h, sway) {
+  cx.beginPath();
+  cx.moveTo(x - w / 2, y);
+  cx.bezierCurveTo(x - w * .62, y - h * .45, x - w * .15 + sway * .5, y - h * .7, x + sway, y - h);
+  cx.bezierCurveTo(x + w * .2 + sway * .5, y - h * .68, x + w * .62, y - h * .42, x + w / 2, y);
+  cx.quadraticCurveTo(x, y + w * .32, x - w / 2, y);
+  cx.closePath();
+}
+
 function drawFires(s) {
   const list = [];
   for (const o of G.objs) if (o.fire > 0) list.push([o, o.fire, 1]);
-  for (const u of G.units) if (u.fire > 0) list.push([u, u.fire, .55]);
+  for (const u of G.units) if (u.fire > 0) list.push([u, u.fire, .6]);
   if (!list.length) return;
-  cx.save();
-  cx.globalCompositeOperation = 'lighter';
+  const T = GANIM;
+  const wind = G.wind || { a: 0, v: 0 };
+  const wx = Math.cos(wind.a) * (.3 + wind.v / 12), wy = Math.sin(wind.a) * (.3 + wind.v / 12);
+  const zoom = clamp(s / 4, .6, 1.6);
   for (const [p, f, k] of list) {
     const q = w2s(p);
-    if (!onScreen(q, 80)) continue;
-    const flick = .8 + .2 * Math.sin(ANIM * 9 + p.x) * Math.sin(ANIM * 5.3 + p.y);
-    const r = (10 + f * 26) * k * clamp(s / 3, .6, 1.8) * flick;
-    const g = cx.createRadialGradient(q.x, q.y, 0, q.x, q.y, r);
-    g.addColorStop(0, `rgba(255,190,90,${.55 * f + .15})`);
-    g.addColorStop(.4, `rgba(255,110,40,${.35 * f + .1})`);
-    g.addColorStop(1, 'rgba(255,60,20,0)');
-    cx.fillStyle = g;
-    cx.fillRect(q.x - r, q.y - r, r * 2, r * 2);
-    /* языки пламени */
-    const n = 2 + Math.round(f * 4);
-    for (let i = 0; i < n; i++) {
-      const ph = ANIM * 3 + i * 2.1 + p.x;
-      const fx0 = q.x + Math.sin(ph) * r * .3, fy0 = q.y - ((ANIM * 18 + i * 7) % (r * .9));
-      cx.fillStyle = `rgba(255,${150 + (i * 23) % 80},60,${.5 * f})`;
-      cx.beginPath(); cx.arc(fx0, fy0, 1.5 + f * 2.5, 0, 7); cx.fill();
+    if (!onScreen(q, 140)) continue;
+    const R = (5 + f * 9) * k * zoom;
+    const seed = p.x * 13.7 + p.y * 7.1;
+    /* дым: клубы поднимаются, растут, бледнеют, их сносит ветром */
+    cx.save();
+    for (let i = 0; i < 7; i++) {
+      const ph = (T * .18 + i / 7 + seed) % 1;
+      const r = R * (.45 + ph * 1.3);
+      const sx = q.x + wx * ph * R * 3.2 + Math.sin(seed + i) * R * .2;
+      const sy = q.y - R * .8 - ph * R * 4.2 + wy * ph * R * 1.5;
+      const g = cx.createRadialGradient(sx, sy, 0, sx, sy, r);
+      g.addColorStop(0, `rgba(84,80,76,${(1 - ph) * .5 * f + .06})`);
+      g.addColorStop(1, 'rgba(84,80,76,0)');
+      cx.fillStyle = g;
+      cx.fillRect(sx - r, sy - r, r * 2, r * 2);
     }
+    cx.restore();
+    cx.save();
+    cx.globalCompositeOperation = 'lighter';
+    /* зарево на земле */
+    const gr = R * 2.6;
+    const g0 = cx.createRadialGradient(q.x, q.y, 0, q.x, q.y, gr);
+    g0.addColorStop(0, `rgba(255,120,40,${.14 + .14 * f})`);
+    g0.addColorStop(1, 'rgba(255,90,30,0)');
+    cx.fillStyle = g0;
+    cx.beginPath(); cx.ellipse(q.x, q.y, gr, gr * .6, 0, 0, 7); cx.fill();
+    cx.globalCompositeOperation = 'source-over';
+    /* языки пламени: внешние красно-оранжевые, внутри — жёлтое ядро */
+    const n = 1 + Math.round(f * 2);
+    for (let i = 0; i < n; i++) {
+      const off = (i - (n - 1) / 2) * R * .38;
+      const fl = .75 + .25 * Math.sin(T * (7 + i * 1.7) + seed + i * 2.3) * Math.sin(T * 4.3 + i);
+      const h = R * (1.7 + (i % 2 ? .2 : .6)) * fl, w = R * .55;
+      const sway = Math.sin(T * 5 + i + seed) * R * .18 + wx * R * .5;
+      const go = cx.createLinearGradient(0, q.y, 0, q.y - h);
+      go.addColorStop(0, 'rgba(255,160,55,.85)');
+      go.addColorStop(.5, 'rgba(235,85,30,.6)');
+      go.addColorStop(1, 'rgba(160,30,10,0)');
+      cx.fillStyle = go;
+      flameTongue(q.x + off, q.y, w, h, sway); cx.fill();
+      const gi = cx.createLinearGradient(0, q.y, 0, q.y - h * .6);
+      gi.addColorStop(0, 'rgba(255,246,205,.9)');
+      gi.addColorStop(.6, 'rgba(255,200,90,.5)');
+      gi.addColorStop(1, 'rgba(255,160,60,0)');
+      cx.fillStyle = gi;
+      flameTongue(q.x + off, q.y, w * .45, h * .62, sway * .6); cx.fill();
+    }
+    /* искры */
+    for (let i = 0; i < 3 + Math.round(f * 5); i++) {
+      const ph = (T * .7 + i * .37 + seed) % 1;
+      const ex = q.x + Math.sin(seed * 3 + i * 1.9) * R * .6 + wx * ph * R * 2;
+      const ey = q.y - R * .6 - ph * R * 3;
+      cx.fillStyle = `rgba(255,${190 + (i * 13) % 60},90,${(1 - ph) * .9})`;
+      cx.fillRect(ex, ey, 1.6, 1.6);
+    }
+    cx.restore();
   }
-  cx.restore();
 }

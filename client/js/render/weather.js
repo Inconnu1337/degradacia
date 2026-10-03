@@ -24,8 +24,6 @@ const WX_PUFFS = (() => {
   return a;
 })();
 
-/* осадки: частицы в экранных координатах */
-let WX_DROPS = [];
 
 function drawWeather(s) {
   const w = G.weather;
@@ -39,7 +37,8 @@ function drawWeather(s) {
 
   /* облака дрейфуют по ветру: смещение растёт с игровым временем и анимацией */
   if (L.cloud) {
-    const drift = (G.t * .0012 + ANIM * .25) * (wind.v + 2);
+    /* дрейф облаков — по игровому времени: на паузе они стоят, а при перемотке плывут быстрее */
+    const drift = G.t * .004 * (wind.v + 2) / 10;
     const sx = WW + 80, sy = WH + 80;
     for (const p of WX_PUFFS) {
       const x = ((p.x + wx * drift) % sx + sx) % sx - 40;
@@ -68,45 +67,64 @@ function clipMap() {
   cx.clip();
 }
 
-/** осадки поверх всего, в экранных координатах */
+/* осадки: частицы живут в координатах карты (км) — двигаются вместе с ней при прокрутке и масштабе */
+let WX_DROPS = [];
+
+/** осадки поверх всего; на паузе замирают */
 function drawPrecip(dtms) {
   const w = G.weather;
   const L = w && (WX_LOOK[w.vis] || WX_LOOK.clear);
   if (!L || (!L.rain && !L.snow)) { WX_DROPS = []; return }
-  const wind = G.wind || { a: 0, v: 0 };
-  const n = L.rain ? 160 : 110;
-  while (WX_DROPS.length < n) WX_DROPS.push({ x: Math.random() * CW, y: Math.random() * CH, z: .5 + Math.random() * .5 });
-  const k = dtms / 1000;
-  const vx = Math.cos(wind.a) * wind.v * (L.rain ? 9 : 6);
+  const s = G.view.s, wind = G.wind || { a: 0, v: 0 };
+  /* видимая область карты в км */
+  const a = s2w({ x: 0, y: 0 }), b = s2w({ x: CW, y: CH });
+  const vw = b.x - a.x, vh = b.y - a.y;
+  const n = L.rain ? 170 : 120;
+  while (WX_DROPS.length < n) WX_DROPS.push({ x: a.x + Math.random() * vw, y: a.y + Math.random() * vh, z: .5 + Math.random() * .5, ph: Math.random() * 9 });
+  const k = worldRuns() ? dtms / 1000 : 0;
+  /* скорость падения задана в пикселях экрана — переводим в км текущего масштаба */
+  const fall = (L.rain ? 520 : 55) / s, vx = Math.cos(wind.a) * wind.v * (L.rain ? 9 : 6) / s;
   cx.save();
   clipMap();
-  if (L.rain) {
-    cx.strokeStyle = 'rgba(170,200,225,.22)'; cx.lineWidth = 1;
-    cx.beginPath();
-    for (const d of WX_DROPS) {
-      d.x += vx * k * d.z; d.y += 520 * k * d.z;
-      if (d.y > CH) { d.y = -10; d.x = Math.random() * CW }
-      if (d.x > CW) d.x -= CW; else if (d.x < 0) d.x += CW;
-      cx.moveTo(d.x, d.y); cx.lineTo(d.x - vx * .02, d.y - 12 * d.z);
-    }
-    cx.stroke();
-  } else {
-    cx.fillStyle = 'rgba(235,242,248,.55)';
-    for (const d of WX_DROPS) {
-      d.x += (vx + Math.sin(ANIM * 1.3 + d.z * 9) * 12) * k * d.z; d.y += 55 * k * d.z;
-      if (d.y > CH) { d.y = -4; d.x = Math.random() * CW }
-      if (d.x > CW) d.x -= CW; else if (d.x < 0) d.x += CW;
-      cx.fillRect(d.x, d.y, 1.6 * d.z + .6, 1.6 * d.z + .6);
+  if (L.rain) { cx.strokeStyle = 'rgba(170,200,225,.22)'; cx.lineWidth = 1; cx.beginPath() }
+  else cx.fillStyle = 'rgba(235,242,248,.55)';
+  for (const d of WX_DROPS) {
+    d.x += (vx + (L.snow ? Math.sin(GANIM * 1.3 + d.ph) * 12 / s : 0)) * k * d.z;
+    d.y += fall * k * d.z;
+    /* после резкой смены масштаба — заново в видимой области */
+    if (d.x < a.x - vw || d.x > b.x + vw || d.y < a.y - vh || d.y > b.y + vh) { d.x = a.x + Math.random() * vw; d.y = a.y + Math.random() * vh }
+    /* вышла за видимую область — возвращается с другой стороны */
+    if (d.y > b.y) { d.y -= vh; d.x = a.x + Math.random() * vw }
+    else if (d.y < a.y) d.y += vh;
+    if (d.x > b.x) d.x -= vw; else if (d.x < a.x) d.x += vw;
+    const q = w2s(d);
+    if (L.rain) { cx.moveTo(q.x, q.y); cx.lineTo(q.x - vx * s * .02, q.y - 12 * d.z) }
+    else cx.fillRect(q.x, q.y, 1.6 * d.z + .6, 1.6 * d.z + .6);
+  }
+  if (L.rain) cx.stroke();
+  cx.restore();
+}
+
+/** левый край карты, не закрытый панелью — там рисуются роза ветра и линейка */
+let __mapLeftT = 0, __mapLeft = 0;
+function mapLeft() {
+  if (ANIM - __mapLeftT > .4) {
+    __mapLeftT = ANIM;
+    const p = document.getElementById('left');
+    __mapLeft = 0;
+    if (p && p.getBoundingClientRect && !p.classList.contains('col')) {
+      const r = p.getBoundingClientRect(), c = cv.getBoundingClientRect ? cv.getBoundingClientRect() : { left: 0 };
+      if (r.width && r.right > c.left) __mapLeft = r.right - c.left;
     }
   }
-  cx.restore();
+  return __mapLeft;
 }
 
 /** роза ветра в левом нижнем углу карты */
 function drawWindRose() {
   const wind = G.wind;
   if (!wind) return;
-  const x = 46, y = CH - 46;
+  const x = mapLeft() + 46, y = CH - 60;
   cx.save();
   cx.fillStyle = 'rgba(8,14,20,.7)'; cx.strokeStyle = 'rgba(120,150,170,.45)'; cx.lineWidth = 1;
   cx.beginPath(); cx.arc(x, y, 24, 0, 7); cx.fill(); cx.stroke();
@@ -122,7 +140,6 @@ function drawWindRose() {
 /* ---------- справка о погоде ---------- */
 function weatherModal() {
   const w = G.weather, wind = G.wind || { a: 0, v: 0 };
-  const from = DIRS[dirIdx(-Math.cos(wind.a), -Math.sin(wind.a))];
   const pct = k => (k >= 1 ? '' : '−') + Math.round(Math.abs(1 - k) * 100) + '%';
   const eff = (k, good) => k === 1 ? '<span class="mu">без изменений</span>' : `<span class="${k > 1 === good ? 'good' : 'bad'}">${pct(k)}</span>`;
   /* ветер для «Жала» (≈50 м/с): попутный и встречный */
@@ -141,7 +158,7 @@ function weatherModal() {
   const fc = G.forecast ? `<p><b>Прогноз:</b> около ${clock(G.forecast.t)} — ${esc(G.forecast.n.toLowerCase())}. Прогноз может ошибаться.</p>` : '<p class="mu">Смены погоды до утра не ожидается.</p>';
   showModal(`<h1>Погода: ${esc(w.n)}</h1>
   <p>${esc(w.d)}</p>
-  <p><b>Ветер:</b> ${from}ный, ${wind.v} м/с (стрелка в углу карты показывает, куда дует).</p>
+  <p><b>Ветер:</b> ${windName(wind.a)}, ${wind.v} м/с (стрелка в углу карты показывает, куда дует).</p>
   ${fc}
   <table class="wx"><tr><th>Что</th><th>Эффект</th><th></th></tr>
   ${rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td class="mu">${r[2]}</td></tr>`).join('')}</table>

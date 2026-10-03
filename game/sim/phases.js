@@ -88,7 +88,7 @@ function startNight2() {
   resetSpeed(15);
   S.startBudget = G.budget;
   for (const o of G.objs) { o.hitT = -1e9; o.ff = null; o.rw = null }
-  for (const u of G.units) u.fix = null;
+  for (const u of G.units) { u.fix = null; u.nk = 0 }
   resetCrews();
   /* вертолёты с постоянной задачей взлетают сами */
   for (const u of G.units) if (UT[u.k].air && u.patrol && u.patrol.keep && u.st === 'ready') {
@@ -142,6 +142,7 @@ function step(dt) {
   if (G.t >= NIGHT_LEN && (!G.threats.some(th => !th.dead) || G.t > NIGHT_LEN + 2400)) {
     hq(MODE.text.dawn(), 'hq');
     G.alarm = false;
+    G.facts = nightFacts();
     MODE.debrief();
   }
 }

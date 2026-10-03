@@ -1,0 +1,98 @@
+/* ============================================================
+   УТРЕННЯЯ ГАЗЕТА
+   Газетная полоса: бумага, шапка, крупный заголовок, колонки
+   с линейками, врезки, частные объявления. Шрифты — системные
+   с засечками, чтобы всё работало без сети.
+   ============================================================ */
+
+#mbox:has(.paper){background:transparent;border:0;box-shadow:none;padding:0;max-width:min(980px,100%)}
+
+.paper{
+  --ink:#1d1b17; --ink2:#4a463e; --rule:#2a2722; --paper:#f1ead8;
+  position:relative;color:var(--ink);font-family:'PT Serif','Georgia','Times New Roman',serif;
+  background:
+    radial-gradient(ellipse at 20% 10%,rgba(255,255,255,.35),transparent 60%),
+    radial-gradient(ellipse at 85% 90%,rgba(150,120,70,.16),transparent 55%),
+    linear-gradient(180deg,#f4eedd,#ebe2cb);
+  padding:22px 30px 18px;border-radius:2px;
+  box-shadow:0 1px 0 #d9cfb6,0 30px 80px rgba(0,0,0,.65),inset 0 0 90px rgba(120,95,50,.18);
+  transform:rotate(-.25deg);
+}
+/* бумажное зерно */
+.paper::before{content:'';position:absolute;inset:0;pointer-events:none;opacity:.35;mix-blend-mode:multiply;
+  background-image:repeating-linear-gradient(0deg,rgba(0,0,0,.025) 0 1px,transparent 1px 3px),
+                   repeating-linear-gradient(90deg,rgba(0,0,0,.018) 0 1px,transparent 1px 4px)}
+.paper p{color:var(--ink);margin:0 0 .6em;line-height:1.45;text-align:justify;hyphens:auto;font-size:14.5px}
+
+.np-top,.np-sub{display:flex;justify-content:space-between;gap:12px;font:600 11px/1.3 'PT Sans Narrow','Arial Narrow',Arial,sans-serif;
+  text-transform:uppercase;letter-spacing:.08em;color:var(--ink2)}
+.np-top{padding-bottom:6px}
+.np-mast{font:900 clamp(34px,6.4vw,66px)/1 'Playfair Display','Georgia','Times New Roman',serif;text-align:center;
+  letter-spacing:.01em;padding:6px 0 8px;border-top:3px double var(--rule);border-bottom:1px solid var(--rule);
+  text-shadow:0 0 1px rgba(0,0,0,.3)}
+.np-sub{border-bottom:3px double var(--rule);padding:5px 0 6px;margin-bottom:12px}
+
+.np-head{font:800 clamp(26px,4.4vw,44px)/1.04 'Playfair Display','Georgia',serif;text-transform:uppercase;
+  text-align:center;margin:6px 0 6px;letter-spacing:.01em;color:var(--ink)!important}
+.np-deck{text-align:center;font:italic 17px/1.35 'PT Serif','Georgia',serif;color:var(--ink2);
+  padding-bottom:10px;margin-bottom:12px;border-bottom:1px solid var(--rule)}
+
+.np-grid{display:grid;grid-template-columns:1fr 250px;gap:20px}
+.np-main{column-count:2;column-gap:20px;column-rule:1px solid rgba(42,39,34,.45)}
+.np-fig{margin:0 0 10px;break-inside:avoid;column-span:all;border:1px solid var(--rule);padding:6px;background:rgba(255,255,255,.18)}
+.np-fig svg{display:block;width:100%;height:auto;max-height:230px;
+  background:repeating-radial-gradient(circle at 50% 50%,rgba(0,0,0,.05) 0 1px,transparent 1px 3px)}
+.np-fig figcaption{font:italic 12px/1.3 'PT Serif','Georgia',serif;color:var(--ink2);margin-top:5px;text-align:center}
+/* буквица */
+.np-lead::first-letter{float:left;font:800 50px/.82 'Playfair Display','Georgia',serif;padding:4px 6px 0 0;color:var(--ink)}
+
+.np-side{border-left:1px solid var(--rule);padding-left:18px}
+.np-box{border:1px solid var(--rule);padding:10px 12px;margin-bottom:12px;background:rgba(255,255,255,.2)}
+.np-box h3{font:700 12px/1 'PT Sans Narrow','Arial Narrow',Arial,sans-serif;text-transform:uppercase;letter-spacing:.14em;
+  margin:0 0 8px;padding-bottom:6px;border-bottom:2px solid var(--rule);color:var(--ink)!important}
+.np-box table{width:100%;border-collapse:collapse;font-size:13px}
+.np-box td{padding:3px 0!important;border-bottom:1px dotted rgba(42,39,34,.45)!important;color:var(--ink)}
+.np-box td:last-child{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.np-wxn{font:800 22px/1.1 'Playfair Display','Georgia',serif;margin-bottom:6px}
+.paper .np-small{font-size:12.5px;color:var(--ink2)}
+
+.np-cols{display:grid;grid-template-columns:repeat(3,1fr);margin-top:14px;border-top:3px double var(--rule);padding-top:10px}
+.np-cols section{padding:0 14px}
+.np-cols section+section{border-left:1px solid rgba(42,39,34,.55)}
+.np-cols section:first-child{padding-left:0}.np-cols section:last-child{padding-right:0}
+.np-cols h4{font:700 12px/1 'PT Sans Narrow','Arial Narrow',Arial,sans-serif;text-transform:uppercase;letter-spacing:.14em;margin:0 0 8px;color:var(--ink)}
+.paper .np-letter{font-style:italic}
+.np-letter span{display:block;text-align:right;font-style:normal;font-size:12.5px;color:var(--ink2);margin-top:4px}
+
+.np-ads{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:14px;padding-top:10px;border-top:1px solid var(--rule)}
+.np-ads div{border:1px solid var(--rule);padding:6px 8px;font:700 11px/1.3 'PT Sans Narrow','Arial Narrow',Arial,sans-serif;
+  text-transform:uppercase;letter-spacing:.03em;text-align:center;display:flex;align-items:center;justify-content:center}
+
+.np-acts{display:flex;justify-content:center;margin-top:16px}
+.np-btn{font:700 13px 'PT Sans Narrow','Arial Narrow',Arial,sans-serif;text-transform:uppercase;letter-spacing:.12em;
+  background:var(--ink);color:#f1ead8;border:0;padding:10px 22px;cursor:pointer;border-radius:2px}
+.np-btn:hover{background:#3a362f}
+
+/* официоз другой стороны: холоднее, с красной полосой */
+.np-atk{background:linear-gradient(180deg,#eef0ec,#e1e4de)}
+.np-atk .np-mast{color:#7a1410;font-family:'PT Sans Narrow','Arial Narrow',Arial,sans-serif;font-weight:900;letter-spacing:.06em;text-transform:uppercase}
+.np-atk .np-head{border-left:6px solid #7a1410;border-right:6px solid #7a1410}
+
+@media (max-width:760px){
+  .paper{padding:16px;transform:none}
+  .np-grid{grid-template-columns:1fr}
+  .np-main{column-count:1}
+  .np-side{border-left:0;padding-left:0}
+  .np-cols{grid-template-columns:1fr}
+  .np-cols section{padding:8px 0;border-left:0!important;border-top:1px solid rgba(42,39,34,.4)}
+  .np-ads{grid-template-columns:1fr 1fr}
+  .np-top span:nth-child(2),.np-sub span:nth-child(2){display:none}
+}
+
+/* перебиваем общие стили модального окна */
+#modal .paper p,#modal .paper li{color:var(--ink)}
+#modal .paper h1{color:var(--ink);margin:6px 0}
+#modal .paper td{border-bottom:1px dotted rgba(42,39,34,.45)}
+#modal .paper h1.np-head{font-size:clamp(26px,4.4vw,46px)}
+.paper .np-side p,.paper .np-cols p{text-align:left}
+.paper .np-main p{text-align:justify;hyphens:auto;-webkit-hyphens:auto}

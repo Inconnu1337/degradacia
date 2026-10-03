@@ -14,6 +14,7 @@ function renderAll() {
   ui.right();
   ui.left(G.tabL);
   ui.threatBar();
+  renderBalBar();
   const zb = $('#btnZones');
   if (zb && zb.classList) zb.classList.toggle('on', G.showZones);
   const sb = $('#btnSpoil');

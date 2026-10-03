@@ -116,7 +116,8 @@ function canEngage(u, th) {
   if ((th.cls === 'ballistic' || th.cls === 'aeroball') && d > (W.rb || 0)) return false;
   if (W.kind === 'drone') return th.seen > G.t - 6;
   if (UT[u.k].radar && W.kind === 'missile') return u.rOn && u.det.has(th.id);
-  return u.det.has(th.id);
+  /* ПЗРК и пулемёты без своего радара берут и целеуказание сети: штаб даёт азимут, расчёт ищет цель */
+  return u.det.has(th.id) || (th.vis && th.seen > G.t - 8 && d < W.r * .85);
 }
 
 function chooseTarget(u) {
@@ -187,30 +188,51 @@ function fire(u, th) {
   if (u.am === 0) say(u, W.kind === 'gun' ? 'Боекомплект израсходован, ствол молчит.' : 'Ракет нет! Пусковые пустые.', 'w');
 }
 
+/* ---------- полёт наших ракет ----------
+   Наведение с упреждением и ограниченной скоростью разворота: ракета
+   не может развернуться на месте. Подрыв — по неконтактному взрывателю,
+   когда цель проходит рядом с отрезком полёта за шаг. Если цель ушла за
+   спину и расстояние растёт — промах, ракета самоликвидируется. */
+const MSL_TURN = { missile: .55, drone: .35 };   /* рад/с */
+const MSL_FUSE = { missile: .3, drone: .18 };    /* км */
+
 function missStep(dt) {
   for (const m of G.miss) {
     if (m.done) continue;
     const th = m.th;
     if (th.dead) { m.done = true; fx({ k: 'air', x: m.x, y: m.y, d: 380, small: 1 }); continue }
-    const ts = TT[th.k].sp, d0 = Math.hypot(th.x - m.x, th.y - m.y);
-    const lead = d0 / (m.sp + .001);
-    const tx = th.x + th.hx * ts * lead * .7, ty = th.y + th.hy * ts * lead * .7;
-    const dx = tx - m.x, dy = ty - m.y, d = Math.hypot(dx, dy) || 1, stp = m.sp * dt;
-    m.a = Math.atan2(dy, dx);
-    if (d0 <= stp + ts * dt + .2) {
+    const ts = TT[th.k].sp * (typeof windMul === 'function' ? windMul(th) : 1);
+    const d0 = Math.hypot(th.x - m.x, th.y - m.y);
+    /* упреждение: где будет цель через время подлёта (не дальше 40 с) */
+    const lead = Math.min(40, d0 / (m.sp + .001));
+    const tx = th.x + th.hx * ts * lead, ty = th.y + th.hy * ts * lead;
+    const want = Math.atan2(ty - m.y, tx - m.x);
+    if (m.a == null) m.a = want;
+    let da = ((want - m.a + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+    const turn = (MSL_TURN[m.kind] || .5) * dt;
+    m.a += clamp(da, -turn, turn);
+    const stp = m.sp * dt;
+    const nx = m.x + Math.cos(m.a) * stp, ny = m.y + Math.sin(m.a) * stp;
+    /* неконтактный взрыватель: ближайшая точка отрезка полёта к цели */
+    const near = segDist(th, { x: m.x, y: m.y }, { x: nx, y: ny }).d;
+    if (near <= (MSL_FUSE[m.kind] || .25) + ts * dt) {
       m.done = true; th.eng--;
+      m.x = nx; m.y = ny;
       if (chance(m.pk)) killThreat(th, m.u);
       else {
         fx({ k: 'air', x: m.x, y: m.y, d: 380, small: 1 });
         sayT(m.u, 'miss', 10, phr('miss', {}, m.u), 'w');
       }
-    } else {
-      m.x += dx / d * stp; m.y += dy / d * stp;
-      m.trail.push(m.x, m.y);
-      if (m.trail.length > 30) m.trail.splice(0, 2);
+      continue;
     }
-    if (G.t - m.t0 > m.maxT && !m.done) {
+    m.x = nx; m.y = ny;
+    m.trail.push(m.x, m.y);
+    if (m.trail.length > 30) m.trail.splice(0, 2);
+    /* цель за спиной и удаляется — ракета её уже не догонит */
+    const d1 = Math.hypot(th.x - m.x, th.y - m.y);
+    if ((Math.abs(da) > 1.8 && d1 > d0) || (G.t - m.t0 > m.maxT)) {
       m.done = true; th.eng--;
+      fx({ k: 'air', x: m.x, y: m.y, d: 300, small: 1 });
       sayT(m.u, 'miss2', 15, phr('miss2', {}, m.u), 'm');
     }
   }
@@ -221,8 +243,9 @@ function killThreat(th, u) {
   if (th.dead) return;
   th.dead = true;
   S.killed[th.k]++;
-  u.kills++;
+  u.kills++; u.nk = (u.nk || 0) + 1;
   u.crew.exp = Math.min(.95, u.crew.exp + .008);
+  crewHonor(u);
   fx({ k: 'air', x: th.x, y: th.y, d: 700 });
   const W = UT[u.k].w;
   if (W.kind === 'gun') S.gunK++;
@@ -460,6 +483,19 @@ function patrolCenter(pt) {
   return pt;
 }
 
+/**
+ * площадка подскока: заправка у сектора, а не на далёкой базе —
+ * иначе вертолёт всё время летал бы туда-обратно. 8 км от центра
+ * сектора в сторону штаба (на своей земле), иначе — родная площадка.
+ */
+function forwardBase(u, pt) {
+  if (!u.home) u.home = { ...u.base };
+  const c = patrolCenter({ ...pt }), h = G.hq || u.home;
+  const d = dist(c, h) || 1;
+  const p = { x: c.x + (h.x - c.x) / d * Math.min(8, d), y: c.y + (h.y - c.y) / d * Math.min(8, d) };
+  return side(p.x, p.y) === 1 && dist(p, c) < dist(u.home, c) ? p : { ...u.home };
+}
+
 function patrolName(pt) {
   if (pt.obj) { const o = objById(pt.obj); if (o) return '«' + o.n + '»' }
   if (pt.uid) { const v = unitById(pt.uid); if (v) return 'прикрытие «' + v.crew.cs + '»' }
@@ -501,7 +537,8 @@ function heliStep(u, T, dt) {
     const d = dist(u, tgt);
     if (u.patrol && !u.dest && !u.rtb && d < 7) {
       /* круг над сектором, плавно */
-      u.orb = (u.orb == null ? Math.atan2(u.y - tgt.y, u.x - tgt.x) : u.orb) + dt * .0016;
+      /* круг радиусом 6 км со своей скоростью */
+      u.orb = (u.orb == null ? Math.atan2(u.y - tgt.y, u.x - tgt.x) : u.orb) + dt * T.sp / 6 * .85;
       const nx = tgt.x + Math.cos(u.orb) * 6, ny = tgt.y + Math.sin(u.orb) * 6;
       const dd = Math.hypot(nx - u.x, ny - u.y) || 1, k = Math.min(1, st / dd);
       u.h = Math.atan2(ny - u.y, nx - u.x);
@@ -541,4 +578,16 @@ function fatigueStep() {
   }
   const names = us.slice(0, 3).map(u => '«' + esc(u.crew.cs) + '»').join(', ');
   hq(`Дежурный: на пределе сил ${names}${us.length > 3 ? ' и ещё ' + (us.length - 3) : ''}. Реакция расчётов падает — днём дать отдых.`, 'w');
+}
+
+/* ---------- судьбы расчётов: звания за сбитые цели ---------- */
+const HONORS = [[5, 'отличный расчёт'], [12, 'ас ПВО'], [25, 'легенда края']];
+
+function crewHonor(u) {
+  if (UT[u.k].fake) return;
+  const h = HONORS.find(([n]) => n === u.kills);
+  if (!h) return;
+  u.crew.title = h[1];
+  (G.honors = G.honors || []).push({ cs: u.crew.cs, n: UT[u.k].n, kills: u.kills, title: h[1], night: G.night });
+  hq(`«${esc(u.crew.cs)}» — ${u.kills}-я сбитая цель. Расчёт заслужил звание «${h[1]}».`, 'g');
 }

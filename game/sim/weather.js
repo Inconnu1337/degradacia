@@ -34,7 +34,7 @@ function planWeather() {
 
 /** текст прогноза для дневной сводки (прогноз ошибается в каждом пятом случае) */
 function forecastText() {
-  let s = `Ветер ${DIRS[dirIdx(-Math.cos(G.wind.a), -Math.sin(G.wind.a))]}ный, ${G.wind.v} м/с.`;
+  let s = `Ветер ${windName(G.wind.a)}, ${G.wind.v} м/с.`;
   if (G.wxNext) s += ` Прогноз: около ${clock(G.wxNext.t)} — ${wxById(G.wxNext.id).n.toLowerCase()}.`;
   else if (chance(.2)) s += ` Прогноз: возможна смена погоды к утру.`;
   return s;

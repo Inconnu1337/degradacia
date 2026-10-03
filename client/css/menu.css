@@ -39,3 +39,14 @@
 .wxbtn:hover{background:rgba(242,179,61,.12)}
 table.wx{width:100%;border-collapse:collapse;margin:.6em 0}
 table.wx td,table.wx th{padding:.32em .5em;border-bottom:1px solid var(--bd);text-align:left;font-size:.92em}
+
+/* ---------- баллистика: плашка подлёта ---------- */
+#balbar{position:fixed;left:50%;transform:translateX(-50%);top:calc(var(--th) + 32px);z-index:12;display:none;
+  background:rgba(92,23,18,.92);border:1px solid var(--rd);border-radius:6px;padding:4px 14px;
+  font:700 13px ui-monospace,monospace;letter-spacing:.06em;color:#fff;animation:pulse 1.1s infinite}
+
+/* ---------- иконки техники в панелях ---------- */
+svg.shopic{display:block;width:100%;max-width:210px;height:74px;margin:4px auto 2px;
+  background:radial-gradient(ellipse at 50% 85%,rgba(120,150,130,.14),transparent 70%)}
+svg.cardic{display:block;width:100%;height:82px;margin:-4px 0 6px;
+  background:linear-gradient(180deg,rgba(255,255,255,.03),transparent)}

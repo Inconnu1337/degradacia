@@ -232,12 +232,11 @@ const Sound = (() => {
       const n = nz(), bp = filt('bandpass', 700, 2), g = ac.createGain(); g.gain.value = .3;
       n.connect(bp); bp.connect(g); g.connect(v.out); v.band = bp;
     } else if (kind === 'rotor') {
-      /* шум, промодулированный по амплитуде частотой лопастей (~5 Гц) */
-      const n = nz(), lp = filt('lowpass', 380, .8), am = ac.createGain(); am.gain.value = .5;
-      const lfo = osc('sine', 5.2), lg = ac.createGain(); lg.gain.value = .45;
+      /* мягкое «вух-вух» лопастей: низкий шум с неглубокой модуляцией, без резких щелчков */
+      const n = nz(), lp = filt('lowpass', 170, .5), am = ac.createGain(); am.gain.value = .55;
+      const lfo = osc('sine', 4.3), lg = ac.createGain(); lg.gain.value = .25;
       lfo.connect(lg); lg.connect(am.gain);
       n.connect(lp); lp.connect(am); am.connect(v.out);
-      const g2 = ac.createGain(); g2.gain.value = .6; am.connect(g2); g2.connect(v.out);
     } else if (kind === 'fpv') {
       const a = osc('sawtooth', 380 + Math.random() * 60), bp = filt('bandpass', 1800, 1.4), g = ac.createGain(); g.gain.value = .05;
       a.connect(bp); bp.connect(g); g.connect(v.out); v.pitch = [a]; v.base = a.frequency.value;
@@ -254,6 +253,8 @@ const Sound = (() => {
 
   /** что сейчас звучит: ближайшие к центру экрана цели, ракеты, вертолёты */
   function engines() {
+    /* время стоит — всё в воздухе «замерло», двигатели молчат */
+    if (G.phase !== 'night' || !G.speed) { for (const [id, v] of voices) killVoice(id, v); return }
     const want = [];
     const def = Game.role === 'def';
     for (const th of G.threats) {
@@ -262,7 +263,11 @@ const Sound = (() => {
       if (s.far < 1.6) want.push({ id: 't' + th.id, p: th, kind: kindOf(th), s, th });
     }
     for (const m of G.miss) { const s = spot(m); if (s.far < 1.4) want.push({ id: 'm' + m.id, p: m, kind: 'rocket', s }) }
-    for (const u of G.units) if (u.st === 'air') { const s = spot(u); if (s.far < 1.5) want.push({ id: 'u' + u.id, p: u, kind: 'rotor', s }) }
+    /* вертолёт слышно только крупным планом или когда он идёт на перехват — иначе он не навязчив */
+    for (const u of G.units) if (u.st === 'air') {
+      const s = spot(u);
+      if (s.far < 1.2 && (u.chase || s.near > .55)) want.push({ id: 'u' + u.id, p: u, kind: 'rotor', s });
+    }
     want.sort((a, b) => b.s.near - a.s.near);
     const keep = new Set(want.slice(0, MAX_VOICES).map(w => w.id));
     for (const [id, v] of voices) if (!keep.has(id)) killVoice(id, v);
@@ -270,7 +275,7 @@ const Sound = (() => {
     for (const w of want.slice(0, MAX_VOICES)) {
       let v = voices.get(w.id);
       if (!v) { v = makeVoice(w.kind); voices.set(w.id, v) }
-      const lvl = { piston: .55, jet: .7, rocket: .6, fall: .9, rotor: .5, fpv: .45 }[w.kind] || .5;
+      const lvl = { piston: .55, jet: .7, rocket: .6, fall: .9, rotor: .18, fpv: .45 }[w.kind] || .5;
       v.out.gain.setTargetAtTime(lvl * Math.pow(w.s.near, 1.4), t, .3);
       v.lp.frequency.setTargetAtTime(400 + 6500 * w.s.near * w.s.near, t, .3);
       if (v.pan) v.pan.pan.setTargetAtTime(w.s.pan, t, .3);
@@ -300,11 +305,21 @@ const Sound = (() => {
     if (cls === 'crit') tone(d, now + .19, .07, { f0: 620, vol: .03 });
   }
 
-  function chime() {
+  /** сводка разведки: стук телетайпа, затем тихий сигнал */
+  let lastTty = 0;
+  function teletype(cls) {
     if (!ready()) return;
-    const t = ac.currentTime;
-    tone(bus.radio, t, .6, { f0: 880, vol: .026, wave: 'triangle' });
-    tone(bus.radio, t + .13, .8, { f0: 1320, vol: .02, wave: 'triangle' });
+    const now = ac.currentTime;
+    if (now - lastTty < .8) return;
+    lastTty = now;
+    let t = now;
+    const n = 10 + (Math.random() * 8 | 0);
+    for (let i = 0; i < n; i++) {
+      t += .035 + Math.random() * .045 + (i % 6 === 5 ? .12 : 0);
+      noise(bus.radio, t, .03, { type: 'bandpass', f0: 2600 + Math.random() * 900, q: 3, vol: .05, att: .001 });
+      tone(bus.radio, t, .02, { f0: 190, vol: .02, att: .001 });
+    }
+    tone(bus.radio, t + .15, .6, { f0: cls === 'crit' ? 660 : 880, vol: .022, wave: 'triangle' });
   }
 
   /** сирена воздушной тревоги: далёкая, через ревер, два плавных подъёма */
@@ -395,6 +410,75 @@ const Sound = (() => {
     }
   }
 
+  /* ---------- драматургия ночи ----------
+     Состояние: day · calm (тишина) · contact (первые цели) · raid (волна) ·
+     after (волна схлынула) · dawn (рассвет). Баллистика — отдельный сигнал.
+     На смену состояния — короткая музыкальная «вставка». */
+  const D = { state: 'day', since: 0, lastBusy: -1e9, beepT: 0, sirenT: 0, birdT: 0 };
+
+  function nightState(t) {
+    if (G.phase !== 'night') return G.phase === 'prep' ? 'day' : 'dawn';
+    if (G.t > NIGHT_LEN - 2400) return 'dawn';
+    const def = Game.role === 'def';
+    let n = 0;
+    for (const th of G.threats) if (!th.dead && (!def || th.vis)) n++;
+    if (n) D.lastBusy = t;
+    if (n >= 10) return 'raid';
+    if (n >= 1) return 'contact';
+    if ((D.state === 'raid' || D.state === 'contact' || D.state === 'after') && t - D.lastBusy < 120) return 'after';
+    return 'calm';
+  }
+
+  /** вставки на смену состояния */
+  function sting(from, to, t) {
+    if (to === 'contact' && (from === 'calm' || from === 'after')) {
+      /* тревожный низкий аккорд, медленно раскрывается */
+      for (const [n, d] of [[38, -8], [45, 6], [50, 0]]) tone(mus.lp, t, 6, { f0: midi(n), vol: .05, att: 2.4, wave: 'triangle' });
+      tone(verb, t + 1.2, 4, { f0: midi(86), vol: .012, att: .01 });
+    } else if (to === 'raid') {
+      /* три глухих удара, как большой барабан вдалеке */
+      for (let i = 0; i < 3; i++) {
+        tone(bus.music, t + i * .62, .9, { f0: 58, f1: 36, vol: .16, att: .004 });
+        noise(bus.music, t + i * .62, .5, { f0: 500, f1: 80, vol: .07, att: .003 });
+      }
+    } else if (to === 'dawn' && from !== 'day' && from !== 'dawn') {
+      /* светлый аккорд: ночь кончилась */
+      for (const n of [60, 64, 67, 71, 74]) tone(mus.lp, t, 9, { f0: midi(n), vol: .02, att: 3, wave: 'sine' });
+    }
+  }
+
+  /** сирены скорых вдалеке: двухтональный сигнал, тихо, через ревер */
+  function ambulance(t) {
+    const pan = ac.createStereoPanner ? ac.createStereoPanner() : null, g = ac.createGain(), lp = filt('lowpass', 1300, .5), w = ac.createGain();
+    g.gain.value = .5; w.gain.value = 1.6;
+    lp.connect(g); if (pan) { pan.pan.value = Math.random() * 1.4 - .7; g.connect(pan); pan.connect(bus.amb) } else g.connect(bus.amb);
+    g.connect(w); w.connect(verb);
+    for (let i = 0; i < 10; i++) tone(lp, t + i * .55, .5, { f0: i % 2 ? 560 : 680, vol: .014, att: .03, wave: 'triangle' });
+  }
+
+  /** птицы на рассвете: быстрые свисты с переливом */
+  function bird(t) {
+    const n = 2 + (Math.random() * 4 | 0), base = 2600 + Math.random() * 1800;
+    for (let i = 0; i < n; i++) {
+      const s0 = t + i * (.09 + Math.random() * .08);
+      tone(bus.amb, s0, .08, { f0: base * (1 + Math.random() * .3), f1: base * (.8 + Math.random() * .5), vol: .012, att: .005 });
+    }
+  }
+
+  function dramaturgy(t) {
+    const st = nightState(t);
+    if (st !== D.state) { sting(D.state, st, t); D.state = st; D.since = t }
+    /* баллистика в воздухе: мягкий двойной сигнал раз в 2 с */
+    if (G.phase === 'night' && G.speed && t > D.beepT && typeof ballisticETA === 'function' && ballisticETA()) {
+      D.beepT = t + 2;
+      tone(bus.sfx, t, .12, { f0: 880, vol: .03 });
+      tone(bus.sfx, t + .16, .12, { f0: 660, vol: .03 });
+    }
+    if (!G.speed && G.phase === 'night') return;
+    if (st === 'after' && t > D.sirenT) { D.sirenT = t + 25 + Math.random() * 30; if (Game.role === 'def' || chance(.3)) ambulance(t + Math.random() * 4) }
+    if (st === 'dawn' && t > D.birdT) { D.birdT = t + 1.5 + Math.random() * 5; bird(t) }
+  }
+
   /* ---------- каждый кадр ---------- */
   function update() {
     if (!ac || !G || !amb) return;
@@ -402,38 +486,46 @@ const Sound = (() => {
     const night = G.phase === 'night';
     const w = G.weather || {}, wind = (G.wind && G.wind.v) || 0, vis = w.vis;
     const busy = (G.det || G.threats.some(th => !th.dead)) ? 1 : 0;
+    /* мир на паузе (и днём) — погода и фон ночи молчат, остаются только музыка и эфир */
+    const live = night && G.speed > 0 ? 1 : 0;
     /* ветер: два слоя, порывы, свист при сильном ветре */
     const gust = .6 + .4 * Math.sin(t * .23) * Math.sin(t * .071 + 1);
-    amb.wind.g.gain.setTargetAtTime((.05 + Math.min(wind, 20) * .012) * gust, t, 1.2);
+    amb.wind.g.gain.setTargetAtTime((.05 + Math.min(wind, 20) * .012) * gust * live, t, .4);
     amb.wind.fl.frequency.setTargetAtTime(220 + wind * 22 * gust, t, 1.5);
-    amb.wind2.g.gain.setTargetAtTime(wind >= 10 ? .012 * gust : 0, t, 2);
+    amb.wind2.g.gain.setTargetAtTime(wind >= 10 ? .012 * gust * live : 0, t, .4);
     amb.wind2.fl.frequency.setTargetAtTime(700 + wind * 30 * gust, t, 1);
-    amb.rain.g.gain.setTargetAtTime(vis === 'rain' ? .07 : vis === 'snow' ? .012 : 0, t, 2);
-    amb.drops.g.gain.setTargetAtTime(vis === 'rain' ? .02 : 0, t, 2);
-    amb.hum.g.gain.setTargetAtTime(night ? .045 + busy * .05 : .015, t, 3);
+    amb.rain.g.gain.setTargetAtTime((vis === 'rain' ? .07 : vis === 'snow' ? .012 : 0) * live, t, .4);
+    amb.drops.g.gain.setTargetAtTime((vis === 'rain' ? .02 : 0) * live, t, .4);
+    amb.hum.g.gain.setTargetAtTime(live ? .045 + busy * .05 : 0, t, .6);
     /* днём — тихий «воздух» штаба */
     amb.room.g.gain.setTargetAtTime(night ? .006 : .02, t, 3);
     /* редкие события фона */
     const N = amb.next, calm = vis === 'clear' || vis === 'cloud';
-    if (night && calm && wind < 9 && !busy && t > N.cricket) { cricket(); N.cricket = t + 1.5 + Math.random() * 4 }
-    if (night && t > N.dog) { if (N.dog) dog(); N.dog = t + 40 + Math.random() * 80 }
-    if (night && busy && t > N.rumble) { if (N.rumble) rumble(); N.rumble = t + 18 + Math.random() * 30 }
+    if (live && calm && wind < 9 && !busy && t > N.cricket) { cricket(); N.cricket = t + 1.5 + Math.random() * 4 }
+    if (live && t > N.dog) { if (N.dog) dog(); N.dog = t + 40 + Math.random() * 80 }
+    if (live && busy && t > N.rumble) { if (N.rumble) rumble(); N.rumble = t + 18 + Math.random() * 30 }
+    dramaturgy(t);
     /* двигатели — 10 раз в секунду */
     if (t - engT > .1) { engT = t; if (ready()) engines() }
     else if (!ready()) for (const [id, v] of voices) killVoice(id, v);
     /* музыка */
-    mus.tension += ((night && busy ? 1 : 0) - mus.tension) * .01;
-    mus.lp.frequency.setTargetAtTime(night ? 900 + mus.tension * 500 : 1500, t, 2);
+    /* музыка по состоянию ночи: волна — плотнее и быстрее пульс, после волны — редко, рассвет — светло */
+    const stt = D.state;
+    const want = stt === 'raid' ? 1 : stt === 'contact' ? .55 : 0;
+    mus.tension += (want - mus.tension) * .01;
+    mus.lp.frequency.setTargetAtTime(stt === 'dawn' || stt === 'day' ? 1600 : 850 + mus.tension * 600, t, 2);
     if (t >= mus.next) {
-      const dur = night ? 10 : 12;
-      chord((night ? PROG_NIGHT : PROG_DAY)[mus.i++ % 4], mus.next, dur);
+      const day = stt === 'dawn' || stt === 'day', dur = stt === 'raid' ? 8 : day ? 12 : 10;
+      if (stt === 'after') tone(mus.lp, mus.next, 6, { f0: midi(PROG_NIGHT[mus.i++ % 4][2]), vol: .025, att: 1.5 });
+      else chord((day ? PROG_DAY : PROG_NIGHT)[mus.i++ % 4], mus.next, dur);
+      if (stt === 'raid') tone(mus.lp, mus.next, dur + 2, { f0: midi(26), vol: .05, att: 2, wave: 'triangle' });
       mus.next += dur;
     }
-    if (mus.tension > .15 && t >= mus.beat) {
+    if (mus.tension > .15 && G.speed && t >= mus.beat) {
       const k = mus.tension;
       tone(bus.music, mus.beat, .5, { f0: 62, f1: 40, vol: .08 * k, att: .01 });
       tone(bus.music, mus.beat + .28, .4, { f0: 55, f1: 38, vol: .045 * k, att: .01 });
-      mus.beat += 60 / 66;
+      mus.beat += 60 / (stt === 'raid' ? 84 : 66);
     } else if (t >= mus.beat) mus.beat = t + .5;
   }
 
@@ -448,7 +540,7 @@ const Sound = (() => {
 
   function onLog(ev) {
     if (ev.box === 'radio') radio(ev.cls);
-    else if (ev.box === 'intel') chime();
+    else if (ev.box === 'intel') teletype(ev.cls);
   }
 
   /* ---------- настройки ---------- */

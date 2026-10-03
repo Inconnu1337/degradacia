@@ -104,7 +104,19 @@ const DefenseFlow = (() => {
   <table><tr><th>Ночь</th><th>Очки</th><th>Перехват</th><th>Пострадавшие</th><th>Энергосистема</th></tr>
   ${G.camp.nights.map(n => `<tr><td>${n.n}</td><td>${n.score}</td><td>${pc(n.rate)}</td><td>${n.civ}</td><td>${n.en}%</td></tr>`).join('')}</table>
   <p>Сумма очков: <b class="ac">${tot}</b> · пострадавших за кампанию: <b>${G.civTotal}</b> · энергосистема: <b>${Math.round(energy())}%</b> · целость объектов: <b>${Math.round(integrity())}%</b></p>
+  ${honorsHTML()}
   <div class="acts"><button class="btn pri" data-a="restart">Новая кампания</button></div>`);
+  }
+
+  /** герои и память кампании */
+  function honorsHTML() {
+    const best = {};
+    for (const h of G.honors || []) best[h.cs] = h;
+    const hs = Object.values(best);
+    const fallen = G.fallen || [];
+    return (hs.length ? `<h2>Герои кампании</h2><ul>${hs.map(h => `<li><b>«${esc(h.cs)}»</b>, ${esc(h.n)} — ${esc(h.title)}, ${h.kills} целей</li>`).join('')}</ul>` : '')
+      + (fallen.length ? `<h2>Помним</h2><ul>${fallen.map(f => `<li>«${esc(f.cs)}», ${esc(f.n)} — ночь ${f.night}${f.kills ? ', на счету ' + f.kills + ' целей' : ''}</li>`).join('')}</ul>`
+        : '<p class="good">За кампанию ни один расчёт не погиб.</p>');
   }
 
   return {

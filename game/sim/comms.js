@@ -286,13 +286,14 @@ function receive(u, o) {
         return;
       }
       u.patrol = { x: o.p.x, y: o.p.y, obj: o.obj || null, uid: o.uid || null, keep: true };
+      u.base = forwardBase(u, u.patrol);
       u.st = 'air'; u.dest = null; u.rtb = 0; u.chase = null;
       say(u, `Взлетаем, сектор: ${patrolName(u.patrol)}. Работаем сами: ищем и бьём мелочь, на заправку и обратно. В воздухе ${fmtDur(u.fuel)}.`);
       break;
     }
     case 'rtb': {
       if (!T.air) return;
-      u.patrol = null; u.chase = null; u.dest = { ...u.base }; u.rtb = 1;
+      u.patrol = null; u.chase = null; if (u.home) u.base = { ...u.home }; u.dest = { ...u.base }; u.rtb = 1;
       if (u.st !== 'air') { u.rtb = 0; u.dest = null; say(u, 'Мы на площадке, задача снята.'); break }
       say(u, 'Возвращаемся на площадку.');
       break;
@@ -347,13 +348,14 @@ function prepExec(u, o) {
   if (o.t === 'move') {
     if (side(o.p.x, o.p.y) !== 1) { toast('Ставить можно только на своей территории', 'i'); return }
     u.x = o.p.x; u.y = o.p.y; u.moved = true; markSpot(u);
-    if (T.air) u.base = { x: o.p.x, y: o.p.y };
+    if (T.air) { u.base = { x: o.p.x, y: o.p.y }; u.home = { ...u.base } }
   }
   else if (o.t === 'patrol' && T.air) {
     u.patrol = { x: o.p.x, y: o.p.y, obj: o.obj || null, uid: o.uid || null, keep: true };
+    u.base = forwardBase(u, u.patrol);
     hq(`«${esc(u.crew.cs)}»: задача на ночь — патруль, сектор ${patrolName(u.patrol)}. Взлёт с началом дежурства.`, 'g');
   }
-  else if (o.t === 'rtb' && T.air) { u.patrol = null; hq(`«${esc(u.crew.cs)}»: задача патруля снята.`, 'm') }
+  else if (o.t === 'rtb' && T.air) { u.patrol = null; if (u.home) u.base = { ...u.home }; hq(`«${esc(u.crew.cs)}»: задача патруля снята.`, 'm') }
   else if (o.t === 'radar') u.radar = o.v;
   else if (o.t === 'roe') u.roe = o.v;
   else if (o.t === 'cover') u.cover = o.obj.id;

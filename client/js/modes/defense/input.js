@@ -12,7 +12,9 @@ const DefenseInput = (() => {
     let best = null, bd = 1e9;
     for (const u of G.units) {
       const q = w2s(u), d = Math.hypot(q.x - sp.x, q.y - sp.y);
-      if (d < Math.max(16, clamp(G.view.s * 2.9, 18, 74) * .6) && d < bd) { bd = d; best = { type: 'u', id: u.id } }
+      /* попадание в плашку (см. drawUnits) */
+      const W = clamp(G.view.s * 6, 34, 112);
+      if (Math.abs(q.x - sp.x) < W / 2 && Math.abs(q.y - sp.y) < W * .31 && d < bd) { bd = d; best = { type: 'u', id: u.id } }
     }
     if (best) return best;
     for (const th of G.threats) {
@@ -23,7 +25,7 @@ const DefenseInput = (() => {
     if (best) return best;
     for (const o of G.objs) {
       const q = w2s(o), d = Math.hypot(q.x - sp.x, q.y - sp.y);
-      const r = clamp(G.view.s * 5.5, 26, 130) * .62;
+      const r = clamp(G.view.s * 5, 40, 120) * .6;
       if (d < r && d < bd) { bd = d; best = { type: 'o', id: o.id } }
     }
     return best;

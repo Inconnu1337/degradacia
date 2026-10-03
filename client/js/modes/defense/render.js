@@ -116,59 +116,60 @@ const DefenseRender = (() => {
   }
 
   /* наши расчёты */
+  /** куда «смотрит» иконка расчёта (1 — влево) */
+  const FACE = {};
+
   function drawUnits(s) {
     const selU = G.sel && G.sel.type === 'u' ? G.sel.id : null;
-    const glyph = s < 4.6;
-    const L = clamp(s * 2.9, 18, 74);
+    /* плашка с боковым профилем техники; ширина растёт с масштабом */
+    const W = clamp(s * 6, 34, 112), H = W * .62, L = W * .55;
     for (const u of G.units) {
-      const T = UT[u.k], q = w2s(u);
-      if (!onScreen(q, L)) continue;
+      const T = UT[u.k], q0 = w2s(u);
+      if (!onScreen(q0, W)) continue;
       const col = stColor(u);
       /* марш */
       if (u.dest) {
         const d = w2s(u.dest);
         cx.strokeStyle = 'rgba(108,195,255,.5)'; cx.setLineDash([4, 4]); cx.lineWidth = 1.2;
-        cx.beginPath(); cx.moveTo(q.x, q.y); cx.lineTo(d.x, d.y); cx.stroke(); cx.setLineDash([]);
+        cx.beginPath(); cx.moveTo(q0.x, q0.y); cx.lineTo(d.x, d.y); cx.stroke(); cx.setLineDash([]);
         cx.fillStyle = 'rgba(108,195,255,.6)';
         cx.beginPath(); cx.arc(d.x, d.y, 3, 0, 7); cx.fill();
       }
-      /* выделение */
-      if (selU === u.id) {
-        cx.strokeStyle = '#f2b33d'; cx.lineWidth = 1.6;
-        cx.beginPath(); cx.arc(q.x, q.y, L * .78, 0, 7); cx.stroke();
+      /* вертолёт в воздухе слегка покачивается */
+      const air = T.air && u.st === 'air';
+      const q = air ? { x: q0.x, y: q0.y - 4 - Math.sin(GANIM * 2 + u.id) * 1.5 } : q0;
+      if (air) {
+        cx.fillStyle = 'rgba(0,0,0,.35)';
+        cx.beginPath(); cx.ellipse(q0.x, q0.y + H * .45, W * .3, H * .12, 0, 0, 7); cx.fill();
       }
-      if (glyph) {
-        cx.save(); cx.translate(q.x, q.y);
-        const r = clamp(s * 1.5, 5, 9);
-        cx.fillStyle = 'rgba(8,14,20,.8)';
-        cx.beginPath(); cx.arc(0, 0, r * 1.25, 0, 7); cx.fill();
-        roleGlyph(cx, u, r);
-        cx.strokeStyle = col; cx.fillStyle = col + '33';
-        cx.fill(); cx.stroke();
-        if (u.rOn) {
-          cx.strokeStyle = 'rgba(108,195,255,.7)'; cx.lineWidth = 1;
-          cx.beginPath(); cx.arc(0, 0, r * 1.9, ANIM % 6.283, ANIM % 6.283 + 1.1); cx.stroke();
-        }
-        cx.restore();
-      } else {
-        /* тень-площадка */
-        cx.save(); cx.translate(q.x, q.y);
-        cx.fillStyle = 'rgba(6,10,14,.5)';
-        cx.beginPath(); cx.ellipse(0, L * .05, L * .58, L * .34, 0, 0, 7); cx.fill();
-        cx.rotate(UT[u.k].air ? u.h : (u.st === 'move' ? u.h : u.h || 0));
-        cx.scale(L, L);
-        cx.lineJoin = 'round';
-        if (u.hp < T.hp * .5) cx.globalAlpha = .82;
-        (ART_GND[T.ic] || ART_GND.pickup)(cx, u, ANIM);
-        cx.restore();
-        /* статусная обводка */
-        cx.strokeStyle = col; cx.lineWidth = 1.4; cx.globalAlpha = .55;
-        cx.beginPath(); cx.arc(q.x, q.y, L * .62, 0, 7); cx.stroke();
-        cx.globalAlpha = 1;
+      const sel = selU === u.id;
+      if (sel) {
+        cx.fillStyle = 'rgba(242,179,61,.16)';
+        rr(cx, q.x - W / 2 - 4, q.y - H / 2 - 4, W + 8, H + 8, 10); cx.fill();
+      }
+      drawPlate(cx, q.x, q.y, W, H, col, sel);
+      /* нос — по направлению движения */
+      /* разворот иконки с запасом: не мигает, когда курс почти вертикальный */
+      const ch = Math.cos(u.h || 0);
+      if (u.st === 'move' || air) { if (ch < -.3) FACE[u.id] = 1; else if (ch > .3) FACE[u.id] = 0 }
+      const flip = (u.st === 'move' || air) && FACE[u.id] === 1;
+      drawIcon(cx, T.ic, q.x, q.y, W * .86, UT[u.k].fake ? 'own' : 'own', flip, u.hp < T.hp * .5 ? .8 : null);
+      /* излучает: голубая точка-маячок */
+      if (u.rOn) {
+        const k = .5 + .5 * Math.sin(ANIM * 6);
+        cx.fillStyle = `rgba(108,195,255,${.5 + .5 * k})`;
+        cx.beginPath(); cx.arc(q.x + W / 2 - 5, q.y - H / 2 + 5, 2.6, 0, 7); cx.fill();
+        cx.strokeStyle = `rgba(108,195,255,${.5 * (1 - k)})`; cx.lineWidth = 1;
+        cx.beginPath(); cx.arc(q.x + W / 2 - 5, q.y - H / 2 + 5, 3 + k * 5, 0, 7); cx.stroke();
+      }
+      /* живучесть, если техника повреждена */
+      if (u.hp < T.hp) {
+        cx.fillStyle = 'rgba(6,10,14,.85)'; cx.fillRect(q.x - W / 2 + 4, q.y + H / 2 - 5, W - 8, 3);
+        cx.fillStyle = hpCol(u.hp / T.hp * 100); cx.fillRect(q.x - W / 2 + 4, q.y + H / 2 - 5, (W - 8) * u.hp / T.hp, 3);
       }
       /* подпись и боекомплект */
       if (s > 3.6) {
-        const y = q.y + (glyph ? 14 : L * .66 + 11);
+        const y = q.y + H / 2 + 11;
         cx.font = '600 10px system-ui, sans-serif'; cx.textAlign = 'center';
         cx.fillStyle = 'rgba(0,0,0,.8)';
         cx.fillText(T.sh + ' ' + u.crew.cs, q.x + 1, y + 1);
@@ -183,7 +184,7 @@ const DefenseRender = (() => {
         }
       }
       /* значки состояния */
-      let bx = q.x + L * .5, by = q.y - L * .55;
+      let bx = q.x + W / 2 + 3, by = q.y - H / 2 + 8;
       const badge = (txt, c2) => {
         cx.font = '9px system-ui, sans-serif'; cx.textAlign = 'left';
         cx.fillStyle = 'rgba(6,10,14,.85)';
@@ -219,7 +220,7 @@ const DefenseRender = (() => {
       cx.rotate(Math.atan2(th.hy, th.hx));
       cx.scale(L, L);
       const art = th.idLv <= 0 ? ART_AIR.unknown : (ART_AIR[th.cls] || ART_AIR.drone);
-      art(cx, col, ANIM);
+      art(cx, col, GANIM);
       cx.restore();
       /* рамка выделения и метка */
       if (selT === th.id) {

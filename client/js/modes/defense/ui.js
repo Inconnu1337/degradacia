@@ -57,7 +57,7 @@ const DefenseUI = (() => {
   function unitCard(u) {
     const T = UT[u.k], c = u.crew, W = T.w;
     const hp = u.hp / T.hp;
-    let h = `<div class="card"><h3>«${esc(c.cs)}» <span class="mu">· ${esc(T.sh)}</span></h3>
+    let h = `<div class="card">${iconHTML(T.ic, 'cardic')}<h3>«${esc(c.cs)}» <span class="mu">· ${esc(T.sh)}</span>${c.title ? ` <span class="ac">★ ${esc(c.title)}</span>` : ''}</h3>
   <div class="sub">${esc(T.n)}</div>
   <div class="row"><span>Состояние</span><b style="color:${stColor(u)}">${unitStatus(u)}</b></div>
   <div class="row"><span>Живучесть</span><b style="color:${hpCol(hp * 100)}">${Math.round(hp * 100)}%</b></div>${bar(hp, hpCol(hp * 100))}`;
@@ -155,7 +155,7 @@ const DefenseUI = (() => {
   function objCard(o) {
     const def = G.units.filter(u => UT[u.k].w && dist(u, o) < UT[u.k].w.r);
     const bal = G.units.filter(u => UT[u.k].w && UT[u.k].w.rb && dist(u, o) < UT[u.k].w.rb);
-    let h = `<div class="card"><h3>${esc(o.n)}</h3>
+    let h = `<div class="card">${iconHTML(o.type, 'cardic', 'obj')}<h3>${esc(o.n)}</h3>
   <div class="sub">${OT[o.type].n} · важность ${o.v}${o.city ? ' · ' + o.city.n : ''}</div>
   <div class="row"><span>Состояние</span><b style="color:${hpCol(o.hp)}">${Math.round(o.hp)}%</b></div>${bar(o.hp / 100, hpCol(o.hp))}
   ${OT[o.type].en ? '<div class="row mu"><span>Входит в энергосистему края</span></div>' : ''}
@@ -226,6 +226,7 @@ const DefenseUI = (() => {
         const T = UT[k], aff = G.budget >= T.cost;
         h += `<div class="shop${aff ? '' : ' poor'}">
         <div class="row"><b>${esc(T.n)}</b><span class="ac">${T.cost} млн</span></div>
+        ${iconHTML(T.ic, 'shopic')}
         <p>${esc(T.d)}</p>
         <div class="row mu"><span>${T.w ? 'поражение ' + T.w.r + ' км · БК ' + T.w.am : T.radar ? 'обнаружение ' + T.radar + ' км' : T.ewr ? 'подавление ' + T.ewr + ' км' : T.eo ? 'наблюдение ' + T.eo + ' км' : 'обеспечение'}</span><span>развёртывание ${fmtDur(T.dep)}</span></div>
         <button class="btn" data-a="buy" data-k="${k}" ${aff ? '' : 'disabled'}>Разместить</button></div>`;

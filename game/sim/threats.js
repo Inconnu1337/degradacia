@@ -177,6 +177,7 @@ function impact(th) {
     hq(`⚠ Попадание: ${T.n} (${CLS_N[T.cls]}) — «${esc(o.n)}». Состояние ${Math.round(o.hp)}%.`, 'w');
     fx({ k: 'fire', x: o.x, y: o.y, d: 12000 });
     if (o.hp <= 0) hq(`«${esc(o.n)}» выведен из строя полностью.`, 'crit');
+    S.objHit[o.id] = (S.objHit[o.id] || 0) + dmg;
     if (ignite(o, th.cls, dmg)) hq(`«${esc(o.n)}»: после прилёта начался пожар.`, 'w');
     if (o.ff && crewHit(o, o.ff, o.n)) o.ff = null;
     if (o.rw && crewHit(o, o.rw, o.n)) o.rw = null;
@@ -198,6 +199,8 @@ function impact(th) {
 
 function unitDestroyed(u, th, how) {
   u.hp = 0;
+  /* память о погибших расчётах (макеты — не люди) */
+  if (!UT[u.k].fake) (G.fallen = G.fallen || []).push({ cs: u.crew.cs, n: UT[u.k].n, night: G.night, kills: u.kills, how: how || (th ? TT[th.k].n : '') });
   if (u.fix) G.crews.rep++;
   S.lost.push(u.k);
   G.units.splice(G.units.indexOf(u), 1);

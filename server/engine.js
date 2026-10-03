@@ -16,7 +16,7 @@ const ROOT = path.join(__dirname, '..');
 const FILES = [
   'shared/util.js', 'shared/config.js',
   'shared/data/lore.js', 'shared/data/threats.js', 'shared/data/units.js', 'shared/data/objects.js',
-  'shared/data/zones.js', 'shared/data/crews.js', 'shared/data/weather.js', 'shared/data/launch.js',
+  'shared/data/zones.js', 'shared/data/crews.js', 'shared/data/weather.js', 'shared/data/launch.js', 'shared/data/icons.js',
   'shared/world.js', 'shared/derived.js', 'shared/routing.js',
   'game/data/phrases.js', 'game/core/mode.js', 'game/core/bridge.js', 'game/core/dispatch.js',
   'game/sim/state.js', 'game/sim/weather.js', 'game/sim/comms.js', 'game/sim/intel.js', 'game/sim/units.js', 'game/sim/threats.js', 'game/sim/damage.js',
@@ -28,7 +28,7 @@ const FILES = [
   'game/modes/attack/flow.js',
   'game/commands.js',
   'game/modes/defense/index.js', 'game/modes/attack/index.js', 'game/modes/duel/index.js',
-  'game/views.js', 'game/save.js', 'game/api.js'
+  'game/news.js', 'game/views.js', 'game/save.js', 'game/api.js'
 ];
 
 /* исходники компилируем один раз на процесс, запускаем в каждой комнате */

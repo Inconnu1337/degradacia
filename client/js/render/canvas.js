@@ -3,7 +3,13 @@
    ХОЛСТ: преобразование координат, эффекты, цвета
    ============================================================ */
 
-let cv, cx, CW = 0, CH = 0, DPR = 1, ANIM = 0;
+/*
+   ANIM  — часы интерфейса: идут всегда (мигание выделения, маячки, тревога)
+   GANIM — часы мира: идут только когда ночью идёт время; на паузе
+           замирают пропеллеры, огонь, облака, осадки, вспышки разрывов
+*/
+let cv, cx, CW = 0, CH = 0, DPR = 1, ANIM = 0, GANIM = 0;
+const worldRuns = () => G && G.phase === 'night' && G.speed > 0;
 
 function initCanvas() {
   cv = $('#map');
@@ -26,7 +32,8 @@ const s2w = p => ({ x: (p.x - CW / 2) / G.view.s + G.view.x, y: (p.y - CH / 2) /
 const onScreen = (q, m) => q.x > -(m || 60) && q.x < CW + (m || 60) && q.y > -(m || 60) && q.y < CH + (m || 60);
 
 /* ---------- эффекты ---------- */
-function fx(o) { o.t0 = performance.now(); G.fx.push(o); if (G.fx.length > 320) G.fx.shift() }
+/** вспышка на карте; её возраст считается по часам мира — на паузе она замирает */
+function fx(o) { o.t0 = GANIM * 1000; G.fx.push(o); if (G.fx.length > 320) G.fx.shift() }
 
 /* ---------- цвета ---------- */
 function stColor(u) {

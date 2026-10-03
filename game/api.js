@@ -42,7 +42,7 @@ const COMMON_COMMANDS = {
   unready() { delete G.ready[ROLE]; return ok() },
   nextDay() {
     if (G.phase !== 'debrief' || MODE.campaignOver()) return fail('не время для этого');
-    return gate('next', nextDay);
+    return gate('next', () => { nextDay(); deliverPapers() });
   },
   final() {
     if (G.phase !== 'debrief' || !MODE.campaignOver()) return fail('не время для этого');

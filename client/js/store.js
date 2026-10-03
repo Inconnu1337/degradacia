@@ -79,7 +79,7 @@ const Store = (() => {
   function applyEvent(ev) {
     if (ev.e === 'log') { logEvent(ev); Sound.onLog(ev) }
     else if (ev.e === 'toast') toast(ev.t, ev.c);
-    else if (ev.e === 'fx') { if (G) { fx(ev.o); Sound.onFx(ev.o) } }
+    else if (ev.e === 'fx') { if (G) { fx(ev.o); Sound.onFx(ev.o); if (ev.o.k === 'boom') shakeFrom(ev.o) } }
     else if (ev.e === 'modal') { if (ev.html) showModal(ev.html); else hideModal() }
     else if (ev.e === 'clear') clearLogs();
   }

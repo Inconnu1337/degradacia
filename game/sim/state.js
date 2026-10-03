@@ -15,7 +15,9 @@ function newStats() {
   return {
     launched: { ...z }, killed: { ...z }, ew: { ...z }, hits: { ...z }, lostNav: { ...z },
     shots: {}, spent: 0, objDmg: 0, civ: 0, lost: [], gunK: 0, icptK: 0, samK: 0,
-    decoySam: 0, mind: [], alarmCost: 0, falseAlarm: 0, uncovered: 0, armHits: 0
+    decoySam: 0, mind: [], alarmCost: 0, falseAlarm: 0, uncovered: 0, armHits: 0,
+    /* ущерб по объектам за ночь — для газеты и разбора */
+    objHit: {}
   };
 }
 
@@ -57,7 +59,7 @@ function newCampaign() {
     alarm: false, alarmSince: -1e9, alarmT: 0, alarmTrust: 1,
     idc: 1, jam: 0, acc1: 0,
     camp: { nights: [], civ: 0 }, campA: { nights: [] }, weather: WEATHER[0], wind: { a: 3.14, v: 3 }, wxNext: null, gifts: [],
-    civTotal: 0, morale: 70, hadVis: false, hadBal: false, lastFalse: 0,
+    civTotal: 0, morale: 70, fallen: [], honors: [], hadVis: false, hadBal: false, lastFalse: 0,
     /* готовность сторон к общему шагу (заступить, следующий день, новая кампания) */
     ready: {}
   };

@@ -17,7 +17,7 @@ const AttackInput = (() => {
       const k = E.know[id];
       if (k.conf < 0.28) continue;
       const q = w2s(k), d = Math.hypot(q.x - sp.x, q.y - sp.y);
-      if (d < 16) consider(d, { type: 'k', id: k.uid });
+      if (d < clamp(G.view.s * 5.2, 32, 92) * .45) consider(d, { type: 'k', id: k.uid });
     }
     for (const o of G.objs) {
       const q = w2s(o), d = Math.hypot(q.x - sp.x, q.y - sp.y);

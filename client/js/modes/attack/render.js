@@ -64,24 +64,19 @@ const AttackRender = (() => {
       const dead = k.dead;
       const q = w2s(k);
       if (!onScreen(q, 30)) continue;
-      const r = clamp(s * 1.15, 5, 11);
-      cx.save(); cx.translate(q.x, q.y);
-      cx.fillStyle = 'rgba(8,14,20,.82)';
-      cx.beginPath(); cx.arc(0, 0, r * 1.35, 0, 7); cx.fill();
-      if (!dead) {
-        roleGlyph(cx, { k: k.type }, r);
-        cx.strokeStyle = k.conf > 0.75 ? '#ffb45a' : '#c98b6a';
-        cx.fillStyle = 'rgba(255,160,90,.25)';
-        cx.fill(); cx.stroke();
-      } else {
-        cx.strokeStyle = '#ff5b47'; cx.lineWidth = 1.6;
-        cx.beginPath(); cx.moveTo(-r, -r); cx.lineTo(r, r); cx.moveTo(r, -r); cx.lineTo(-r, r); cx.stroke();
+      /* контакт разведки: плашка с профилем; чем увереннее разведка, тем ярче */
+      const W = clamp(s * 5.2, 32, 92), H = W * .62;
+      drawPlate(cx, q.x, q.y, W, H, dead ? '#ff5b47' : k.conf > .75 ? '#ffb45a' : '#c98b6a', false);
+      drawIcon(cx, T.ic, q.x, q.y, W * .86, dead ? 'dead' : 'enemy', false, dead ? .7 : .45 + .55 * k.conf);
+      if (dead) {
+        cx.strokeStyle = '#ff5b47'; cx.lineWidth = 2;
+        cx.beginPath(); cx.moveTo(q.x - H * .4, q.y - H * .4); cx.lineTo(q.x + H * .4, q.y + H * .4);
+        cx.moveTo(q.x + H * .4, q.y - H * .4); cx.lineTo(q.x - H * .4, q.y + H * .4); cx.stroke();
       }
-      cx.restore();
       if (s > 2.8) {
         cx.font = '600 10px system-ui, sans-serif'; cx.textAlign = 'center';
         cx.fillStyle = dead ? '#ff8f80' : '#ffd0a8';
-        cx.fillText((dead ? 'поражён ' : '') + T.sh + ' ' + Math.round(k.conf * 100) + '%', q.x, q.y + r + 12);
+        cx.fillText((dead ? 'поражён ' : '') + T.sh + ' ' + Math.round(k.conf * 100) + '%', q.x, q.y + H / 2 + 12);
       }
     }
   }
@@ -112,7 +107,7 @@ const AttackRender = (() => {
       const big = ['cruise', 'ballistic', 'aeroball'].includes(th.cls);
       const L = clamp(s * (big ? 3 : 2.2), big ? 16 : 13, big ? 54 : 40);
       cx.save(); cx.translate(q.x, q.y); cx.rotate(Math.atan2(th.hy, th.hx)); cx.scale(L, L);
-      (ART_AIR[th.cls] || ART_AIR.drone)(cx, col, ANIM);
+      (ART_AIR[th.cls] || ART_AIR.drone)(cx, col, GANIM);
       cx.restore();
       if (selT === th.id) {
         cx.strokeStyle = '#f2b33d'; cx.lineWidth = 1.5;

@@ -21,15 +21,15 @@ const UT = {
     d: 'Два наблюдателя, тепловизор и направленный микрофон. Не излучает, стоит копейки. Цепочка постов вдоль границы — глаза всей системы.'
   },
   mog: {
-    n: 'Мобильная огневая группа', sh: 'МОГ', ic: 'pickup', cost: 1, hp: 20, sp: .018, dep: 60, eo: 4,
+    n: 'Мобильная огневая группа', sh: 'МОГ', ic: 'pickup', cost: 1, hp: 20, sp: .018, dep: 60, eo: 6,
     d: 'Пикап с крупнокалиберным пулемётом и тепловизором. Дёшево и сходно против «мопедов», но работает только вблизи — ставить надо на трассах пролёта.',
-    w: { kind: 'gun', r: 1.6, rate: 5, am: 30, mc: 0, pk: { drone: .14, decoy: .16, loiter: .14, jet: .03, recon: .14, ewuav: .12, arm: .12, cruise: .02, fpv: 0.18} },
+    w: { kind: 'gun', r: 2.4, rate: 5, am: 30, mc: 0, pk: { drone: .14, decoy: .16, loiter: .14, jet: .02, recon: .14, ewuav: .12, arm: .12, cruise: .02, fpv: 0.18} },
     rl: { t: 600, c: .02 }
   },
   manpad: {
-    n: 'Группа ПЗРК «Искра»', sh: 'ПЗРК', ic: 'manpad', cost: 2, hp: 10, sp: .015, dep: 30, eo: 5,
+    n: 'Группа ПЗРК «Искра»', sh: 'ПЗРК', ic: 'manpad', cost: 2, hp: 10, sp: .015, dep: 30, eo: 8,
     d: 'Расчёт с переносными комплексами. Ракета с тепловой головкой, четыре выстрела, дальность 5 км. Идеальна в засаде на маршруте.',
-    w: { kind: 'missile', r: 5, rate: 10, am: 4, msp: .6, mc: .12, pk: { drone: .5, decoy: .55, loiter: .52, jet: .5, recon: .55, ewuav: .5, arm: .5, cruise: .4, fpv: 0.3} },
+    w: { kind: 'missile', r: 7, rate: 10, am: 4, msp: .6, mc: .12, pk: { drone: .5, decoy: .55, loiter: .52, jet: .3, recon: .55, ewuav: .5, arm: .5, cruise: .4, fpv: 0.3} },
     rl: { t: 600 }
   },
   decoy: {
@@ -39,7 +39,7 @@ const UT = {
   icpt: {
     n: 'Расчёт дронов-перехватчиков «Сапсан»', sh: 'ДП', ic: 'icpt', cost: 3, hp: 10, sp: .016, dep: 120, eo: 6,
     d: 'Скоростные перехватчики на кумулятивной сетке, работают по целеуказанию сети. Отлично снимают «мопеды», реактивные догоняют плохо.',
-    w: { kind: 'drone', r: 18, rate: 15, am: 8, msp: .075, mc: .02, pk: { drone: .62, decoy: .66, loiter: .64, jet: .3, recon: .62, ewuav: .6, arm: .55, fpv: 0.4} },
+    w: { kind: 'drone', r: 18, rate: 15, am: 8, msp: .075, mc: .02, pk: { drone: .62, decoy: .66, loiter: .64, jet: .12, recon: .62, ewuav: .6, arm: .55, fpv: 0.4} },
     rl: { t: 900 }
   },
   ttz: {
@@ -57,19 +57,19 @@ const UT = {
   spaag: {
     n: 'ЗСУ «Вихрь»', sh: 'ЗСУ', ic: 'spaag', cost: 15, hp: 40, sp: .012, dep: 120, radar: 18, pw: .3, eo: 3,
     d: 'Спаренная 35-мм установка с собственной РЛС. Надёжно закрывает объект от дронов, может взять и крылатую ракету.',
-    w: { kind: 'gun', r: 4, rate: 3, am: 30, mc: 0, pk: { drone: .3, decoy: .33, loiter: .31, jet: .2, recon: .3, ewuav: .3, arm: .28, cruise: .14, fpv: 0.35} },
+    w: { kind: 'gun', r: 4, rate: 3, am: 30, mc: 0, pk: { drone: .3, decoy: .33, loiter: .31, jet: .12, recon: .3, ewuav: .3, arm: .28, cruise: .14, fpv: 0.35} },
     rl: { t: 900, c: .3 }
   },
   heli: {
     n: 'Вертолёт-перехватчик «Стрепет»', sh: 'ВП', ic: 'heli', cost: 30, hp: 15, sp: .07, dep: 60, eo: 8, air: 1, fuel: 5400,
     d: 'Ночной вертолёт с тепловизором и пулемётом. Получив сектор (точку, объект или расчёт), работает сам: ищет «мопеды», FPV и разведчиков по данным сети, догоняет и сбивает, на заправку уходит и возвращается без команды. Топлива ~1,5 ч. В туман и снегопад не летает.',
-    w: { kind: 'gun', r: 3, rate: 3, am: 60, mc: 0, pk: { drone: .45, decoy: .48, loiter: .46, jet: .05, recon: .34, ewuav: .32, arm: .3, cruise: .04, fpv: 0.3} },
+    w: { kind: 'gun', r: 3, rate: 3, am: 60, mc: 0, pk: { drone: .45, decoy: .48, loiter: .46, jet: .02, recon: .34, ewuav: .32, arm: .3, cruise: .04, fpv: 0.3} },
     rl: { t: 420, c: .1 }
   },
   krom: {
     n: 'ЗРК малой дальности «Кром»', sh: 'ЗРК-М', ic: 'krom', cost: 45, hp: 35, sp: .012, dep: 300, radar: 40, pw: .6,
     d: 'Двенадцать ракет, дальность 12 км, недорогой выстрел. Рабочая лошадка объектовой обороны: берёт дроны и крылатые, баллистику — нет.',
-    w: { kind: 'missile', r: 12, rate: 4, am: 12, msp: .8, mc: .18, reserve: 2, pk: { drone: .78, decoy: .8, loiter: .78, jet: .7, recon: .78, ewuav: .76, arm: .72, cruise: .62, fpv: 0.5} },
+    w: { kind: 'missile', r: 12, rate: 4, am: 12, msp: .8, mc: .18, reserve: 2, pk: { drone: .78, decoy: .8, loiter: .78, jet: .6, recon: .78, ewuav: .76, arm: .72, cruise: .62, fpv: 0.5} },
     rl: { t: 1200 }
   },
   horizon: {
