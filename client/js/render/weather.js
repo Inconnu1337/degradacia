@@ -20,7 +20,7 @@ const WX_PUFFS = (() => {
   let seed = 7;
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const a = [];
-  for (let i = 0; i < 46; i++) a.push({ x: rnd() * 640 - 40, y: rnd() * 440 - 40, r: 18 + rnd() * 34, k: .6 + rnd() * .4 });
+  for (let i = 0; i < 40; i++) a.push({ x: rnd() * 560, y: rnd() * 440, r: 16 + rnd() * 30, k: .6 + rnd() * .4 });
   return a;
 })();
 
@@ -33,14 +33,17 @@ function drawWeather(s) {
   const L = WX_LOOK[w.vis] || WX_LOOK.clear;
   const wind = G.wind || { a: 0, v: 0 };
   const wx = Math.cos(wind.a), wy = Math.sin(wind.a);
+  /* погода — только над картой края */
+  cx.save();
+  clipMap();
 
   /* облака дрейфуют по ветру: смещение растёт с игровым временем и анимацией */
   if (L.cloud) {
     const drift = (G.t * .0012 + ANIM * .25) * (wind.v + 2);
-    const span = 680;
+    const sx = WW + 80, sy = WH + 80;
     for (const p of WX_PUFFS) {
-      let x = ((p.x + wx * drift) % span + span) % span - 40;
-      let y = ((p.y + wy * drift) % 480 + 480) % 480 - 40;
+      const x = ((p.x + wx * drift) % sx + sx) % sx - 40;
+      const y = ((p.y + wy * drift) % sy + sy) % sy - 40;
       const q = w2s({ x, y }), r = p.r * s;
       if (q.x < -r || q.y < -r || q.x > CW + r || q.y > CH + r) continue;
       const g = cx.createRadialGradient(q.x, q.y, 0, q.x, q.y, r);
@@ -54,6 +57,15 @@ function drawWeather(s) {
     cx.fillStyle = `rgba(170,182,190,${L.haze})`;
     cx.fillRect(0, 0, CW, CH);
   }
+  cx.restore();
+}
+
+/** обрезать рисование прямоугольником карты (в экранных координатах) */
+function clipMap() {
+  const a = w2s({ x: 0, y: 0 }), b = w2s({ x: WW, y: WH });
+  cx.beginPath();
+  cx.rect(a.x, a.y, b.x - a.x, b.y - a.y);
+  cx.clip();
 }
 
 /** осадки поверх всего, в экранных координатах */
@@ -67,6 +79,7 @@ function drawPrecip(dtms) {
   const k = dtms / 1000;
   const vx = Math.cos(wind.a) * wind.v * (L.rain ? 9 : 6);
   cx.save();
+  clipMap();
   if (L.rain) {
     cx.strokeStyle = 'rgba(170,200,225,.22)'; cx.lineWidth = 1;
     cx.beginPath();
