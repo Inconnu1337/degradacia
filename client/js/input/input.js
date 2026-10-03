@@ -121,6 +121,12 @@ function initInput() {
       case 'spd': setSpeed(+v); break;
       case 'tabL': G.tabL = v; G.unread[v] = 0; tabsDirty = true; uiDirty(); break;
       case 'tabR': G.tabR = v; tabsDirty = true; lastRC = ''; uiDirty(); break;
+      case 'gosq': {
+        /* квадрат из журнала: карта на него, с подсветкой */
+        const c = sqCenter(v);
+        if (c) { centerOn(c, Math.max(G.view.s, 6)); G.sqFlash = { x: c.x, y: c.y, t: ANIM } }
+        break;
+      }
       case 'selu': {
         const u = unitById(+id);
         if (u) { G.sel = { type: 'u', id: u.id }; if (el.dataset.c) centerOn(u, Math.max(G.view.s, 7)); G.tabR = 'ord'; tabsDirty = true; lastRC = ''; uiDirty() }

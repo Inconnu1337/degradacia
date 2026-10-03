@@ -39,6 +39,7 @@ function draw(dtms) {
   drawMissiles(s);
   MODE.render.threats(s);
   drawFx(s);
+  drawSqFlash();
   drawPrecip(dtms);
   drawScreenFX();
   applyShake(dtms);
@@ -330,4 +331,20 @@ function drawFires(s) {
     }
     cx.restore();
   }
+}
+
+/** подсветка квадрата, выбранного в журнале: рамка гаснет за 3 с */
+function drawSqFlash() {
+  const f = G.sqFlash;
+  if (!f) return;
+  const k = 1 - (ANIM - f.t) / 3;
+  if (k <= 0) { G.sqFlash = null; return }
+  const a = w2s({ x: f.x - GRID / 2, y: f.y - GRID / 2 }), b = w2s({ x: f.x + GRID / 2, y: f.y + GRID / 2 });
+  cx.save();
+  cx.strokeStyle = `rgba(242,179,61,${k})`; cx.lineWidth = 2;
+  cx.setLineDash([6, 4]);
+  cx.strokeRect(a.x, a.y, b.x - a.x, b.y - a.y);
+  cx.fillStyle = `rgba(242,179,61,${k * .08})`;
+  cx.fillRect(a.x, a.y, b.x - a.x, b.y - a.y);
+  cx.restore();
 }

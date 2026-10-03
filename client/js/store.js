@@ -14,7 +14,7 @@ let G = null, E = null, S = null;
 /** партия: код, режим сервера, моя сторона, кто подключён */
 const Game = { room: null, mode: null, role: null, humans: [], seats: {}, link: false };
 
-const LOCAL_KEYS = ['sel', 'mode', 'view', 'showZones', 'showRoutes', 'tabL', 'tabR', 'unread', 'fx', 'spoil', 'plan'];
+const LOCAL_KEYS = ['sqFlash', 'sel', 'mode', 'view', 'showZones', 'showRoutes', 'tabL', 'tabR', 'unread', 'fx', 'spoil', 'plan'];
 
 const Store = (() => {
   let snapAt = 0, snapGap = 100;

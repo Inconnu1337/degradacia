@@ -50,3 +50,7 @@ svg.shopic{display:block;width:100%;max-width:210px;height:74px;margin:4px auto 
   background:radial-gradient(ellipse at 50% 85%,rgba(120,150,130,.14),transparent 70%)}
 svg.cardic{display:block;width:100%;height:82px;margin:-4px 0 6px;
   background:linear-gradient(180deg,rgba(255,255,255,.03),transparent)}
+
+/* квадраты карты в журнале — ссылки */
+.sqlink{color:#9fd3f5;cursor:pointer;border-bottom:1px dashed rgba(159,211,245,.5)}
+.sqlink:hover{color:#f2b33d;border-bottom-color:#f2b33d}

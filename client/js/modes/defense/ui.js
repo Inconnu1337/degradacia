@@ -232,7 +232,7 @@ const DefenseUI = (() => {
         <button class="btn" data-a="buy" data-k="${k}" ${aff ? '' : 'disabled'}>Разместить</button></div>`;
       }
     }
-    if (h !== lastRC) { $('#rc').innerHTML = h; lastRC = h }
+    if (h !== lastRC) { $('#rc').innerHTML = h; linkSquares($('#rc')); lastRC = h }
   }
 
   /* ---------- вкладка «Объекты» слева ---------- */

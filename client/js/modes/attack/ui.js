@@ -185,7 +185,7 @@ const AttackUI = (() => {
     </div>`;
       h += feintHTML(p);
     }
-    if (h !== lastRC) { $('#rc').innerHTML = h; lastRC = h; }
+    if (h !== lastRC) { $('#rc').innerHTML = h; linkSquares($('#rc')); lastRC = h; }
   }
 
   function helpModal() {
