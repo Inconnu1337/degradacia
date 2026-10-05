@@ -146,7 +146,7 @@ const AttackUI = (() => {
       const late = pl && pl.t + (p.n - 1) * pl.gap > NIGHT_LEN - 900;
       const zoneNow = chosenZone();
       const far = T.range && aim && zoneNow && dist(zoneNow, aim) > T.range - 4;
-      const grounded = T.rc && !G.weather.fpv;
+      const grounded = (T.rc || T.brood) && !G.weather.fpv;
       if (far) h += `<div class="row"><span class="bad">Цель дальше ${T.range} км от района пуска — FPV не долетит</span></div>`;
       if (grounded) h += `<div class="row"><span class="bad">Погода нелётная для FPV</span></div>`;
       h += `<div class="acts"><button class="btn pri" data-a="launch" ${(E.stock[p.k] || 0) < 1 || left < p.n || late || far || grounded || (patrol && !p.wps.length) ? 'disabled' : ''}>Пуск · ${Math.min(p.n, E.stock[p.k] || 0)}× ${esc(T.n)}</button></div>`;
@@ -199,6 +199,7 @@ const AttackUI = (() => {
   <li>«Начать налёт» — 19:00. Ускорение сверху, пауза — пробел.</li>
   <li>Автомаршрут обходит только известные зоны. «Свой маршрут» — изломы кликами.</li>
   <li>«Мотыльки» жгут их ракеты. «Сова» и излучающие РЛС вскрывают позиции. «Молот» и «Грач» бьют по контактам.</li>
+  <li>FPV «Оса» с переднего края выбивает посты наблюдения и мобильные группы, а камера вскрывает технику. Вглубь края FPV довозит «Улей»: сбрасывает рой за 20 км до цели и держит связь — собьют носитель, рой ослепнет.</li>
   <li>Попадание в жилой квартал даёт сопутствующие потери и режет очки. Цель кампании — энергосистема за ${NIGHTS_TOTAL} ночей.</li>
   </ul>
   <h2>Чего не видно</h2>
@@ -216,12 +217,18 @@ const AttackUI = (() => {
         lastRC = ''; uiDirty(); return;
       }
       if (a === 'weapon') {
+        const wasPatrol = routeOnly(p.k);
         p.k = el.dataset.k;
         p.n = Math.min(ATK_N[p.k] || 1, Math.max(1, E.stock[p.k] || 1));
+        /* маршрут разведчика и изломы удара — разные вещи: при смене типа средства точки не переносим */
+        if (wasPatrol !== routeOnly(p.k)) p.wps = [];
         if (routeOnly(p.k)) {
           if (p.tgt && p.tgt.obj) p.tgt = null;
           G.mode = { t: 'route' };
           hint('Кликайте маршрут. Этот борт летит только по точкам.');
+        } else if (wasPatrol && G.mode && G.mode.t === 'route') {
+          /* иначе режим изломов «залипает»: клик по объекту ставил бы точку, а удар ушёл бы в старую цель */
+          G.mode = null; hint('');
         }
         syncZone(); computePreview(); lastRC = ''; uiDirty();
       } else if (a === 'cnt') { p.n = +el.dataset.v; lastRC = ''; uiDirty(); }
@@ -229,9 +236,9 @@ const AttackUI = (() => {
       else if (a === 'zid') { p.zid = el.dataset.v; computePreview(); lastRC = ''; uiDirty(); }
       else if (a === 'high') { p.high = !p.high; lastRC = ''; uiDirty(); }
       else if (a === 'route') {
-        G.mode = { t: 'route' };
-        hint('Кликайте изломы. Объект или контакт — цель. ПКМ — выйти.');
-        uiDirty();
+        if (G.mode && G.mode.t === 'route') { G.mode = null; hint('') }
+        else { G.mode = { t: 'route' }; hint('Кликайте изломы. Объект или контакт — цель. ПКМ — выйти.') }
+        lastRC = ''; uiDirty();
       } else if (a === 'reroute') { p.wps = []; computePreview(); lastRC = ''; uiDirty(); }
       else if (a === 'clrwps') { p.wps = []; computePreview(); lastRC = ''; uiDirty(); }
       else if (a === 'launch') launchStrike();

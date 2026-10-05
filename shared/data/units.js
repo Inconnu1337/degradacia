@@ -23,13 +23,13 @@ const UT = {
   mog: {
     n: 'Мобильная огневая группа', sh: 'МОГ', ic: 'pickup', cost: 1, hp: 20, sp: .018, dep: 60, eo: 6,
     d: 'Пикап с крупнокалиберным пулемётом и тепловизором. Дёшево и сходно против «мопедов», но работает только вблизи — ставить надо на трассах пролёта.',
-    w: { kind: 'gun', r: 2.4, rate: 5, am: 30, mc: 0, pk: { drone: .14, decoy: .16, loiter: .14, jet: .02, recon: .14, ewuav: .12, arm: .12, cruise: .02, fpv: 0.18} },
+    w: { kind: 'gun', r: 2.4, rate: 5, am: 30, mc: 0, pk: { drone: .14, decoy: .16, loiter: .14, jet: .02, recon: .14, ewuav: .12, arm: .12, cruise: .02, fpv: .18, mother: .2} },
     rl: { t: 600, c: .02 }
   },
   manpad: {
     n: 'Группа ПЗРК «Искра»', sh: 'ПЗРК', ic: 'manpad', cost: 2, hp: 10, sp: .015, dep: 30, eo: 8,
     d: 'Расчёт с переносными комплексами. Ракета с тепловой головкой, четыре выстрела, дальность 5 км. Идеальна в засаде на маршруте.',
-    w: { kind: 'missile', r: 7, rate: 10, am: 4, msp: .6, mc: .12, pk: { drone: .5, decoy: .55, loiter: .52, jet: .3, recon: .55, ewuav: .5, arm: .5, cruise: .4, fpv: 0.3} },
+    w: { kind: 'missile', r: 7, rate: 10, am: 4, msp: .6, mc: .12, pk: { drone: .5, decoy: .55, loiter: .52, jet: .3, recon: .55, ewuav: .5, arm: .5, cruise: .4, fpv: .3, mother: .55} },
     rl: { t: 600 }
   },
   decoy: {
@@ -39,7 +39,7 @@ const UT = {
   icpt: {
     n: 'Расчёт дронов-перехватчиков «Сапсан»', sh: 'ДП', ic: 'icpt', cost: 3, hp: 10, sp: .016, dep: 120, eo: 6,
     d: 'Скоростные перехватчики на кумулятивной сетке, работают по целеуказанию сети. Отлично снимают «мопеды», реактивные догоняют плохо.',
-    w: { kind: 'drone', r: 18, rate: 15, am: 8, msp: .075, mc: .02, pk: { drone: .62, decoy: .66, loiter: .64, jet: .12, recon: .62, ewuav: .6, arm: .55, fpv: 0.4} },
+    w: { kind: 'drone', r: 18, rate: 15, am: 8, msp: .075, mc: .02, pk: { drone: .62, decoy: .66, loiter: .64, jet: .12, recon: .62, ewuav: .6, arm: .55, fpv: .4, mother: .6} },
     rl: { t: 900 }
   },
   ttz: {
@@ -57,19 +57,19 @@ const UT = {
   spaag: {
     n: 'ЗСУ «Вихрь»', sh: 'ЗСУ', ic: 'spaag', cost: 15, hp: 40, sp: .012, dep: 120, radar: 18, pw: .3, eo: 3,
     d: 'Спаренная 35-мм установка с собственной РЛС. Надёжно закрывает объект от дронов, может взять и крылатую ракету.',
-    w: { kind: 'gun', r: 4, rate: 3, am: 30, mc: 0, pk: { drone: .3, decoy: .33, loiter: .31, jet: .12, recon: .3, ewuav: .3, arm: .28, cruise: .14, fpv: 0.35} },
+    w: { kind: 'gun', r: 4, rate: 3, am: 30, mc: 0, pk: { drone: .3, decoy: .33, loiter: .31, jet: .12, recon: .3, ewuav: .3, arm: .28, cruise: .14, fpv: .35, mother: .35} },
     rl: { t: 900, c: .3 }
   },
   heli: {
     n: 'Вертолёт-перехватчик «Стрепет»', sh: 'ВП', ic: 'heli', cost: 30, hp: 15, sp: .07, dep: 60, eo: 8, air: 1, fuel: 5400,
     d: 'Ночной вертолёт с тепловизором и пулемётом. Получив сектор (точку, объект или расчёт), работает сам: ищет «мопеды», FPV и разведчиков по данным сети, догоняет и сбивает, на заправку уходит и возвращается без команды. Топлива ~1,5 ч. В туман и снегопад не летает.',
-    w: { kind: 'gun', r: 3, rate: 3, am: 60, mc: 0, pk: { drone: .45, decoy: .48, loiter: .46, jet: .02, recon: .34, ewuav: .32, arm: .3, cruise: .04, fpv: 0.3} },
+    w: { kind: 'gun', r: 3, rate: 3, am: 60, mc: 0, pk: { drone: .45, decoy: .48, loiter: .46, jet: .02, recon: .34, ewuav: .32, arm: .3, cruise: .04, fpv: .3, mother: .45} },
     rl: { t: 420, c: .1 }
   },
   krom: {
     n: 'ЗРК малой дальности «Кром»', sh: 'ЗРК-М', ic: 'krom', cost: 45, hp: 35, sp: .012, dep: 300, radar: 40, pw: .6,
     d: 'Двенадцать ракет, дальность 12 км, недорогой выстрел. Рабочая лошадка объектовой обороны: берёт дроны и крылатые, баллистику — нет.',
-    w: { kind: 'missile', r: 12, rate: 4, am: 12, msp: .8, mc: .18, reserve: 2, pk: { drone: .78, decoy: .8, loiter: .78, jet: .6, recon: .78, ewuav: .76, arm: .72, cruise: .62, fpv: 0.5} },
+    w: { kind: 'missile', r: 12, rate: 4, am: 12, msp: .8, mc: .18, reserve: 2, pk: { drone: .78, decoy: .8, loiter: .78, jet: .6, recon: .78, ewuav: .76, arm: .72, cruise: .62, fpv: .5, mother: .8} },
     rl: { t: 1200 }
   },
   horizon: {
@@ -83,13 +83,13 @@ const UT = {
   shield: {
     n: 'ЗРК средней дальности «Щит»', sh: 'ЗРК-С', ic: 'shield', cost: 150, hp: 50, spread: .65, sp: .01, dep: 600, radar: 75, pw: 1,
     d: 'Основа обороны объекта: восемь ракет, дальность 35 км, уверенно берёт дроны и крылатые. По баллистике работает только на последнем участке, до 10 км и с невысокой вероятностью — прикрыть себя и соседний объект.',
-    w: { kind: 'missile', r: 35, rb: 10, rate: 5, am: 8, msp: 1, mc: .5, reserve: 2, pk: { drone: .9, decoy: .92, loiter: .9, jet: .88, recon: .9, ewuav: .88, arm: .84, cruise: .82, ballistic: .38, fpv: 0.55} },
+    w: { kind: 'missile', r: 35, rb: 10, rate: 5, am: 8, msp: 1, mc: .5, reserve: 2, pk: { drone: .9, decoy: .92, loiter: .9, jet: .88, recon: .9, ewuav: .88, arm: .84, cruise: .82, ballistic: .38, fpv: .55, mother: .9} },
     rl: { t: 1800 }
   },
   bastion: {
     n: 'ЗРК большой дальности «Бастион»', sh: 'ЗРК-Б', ic: 'bastion', cost: 420, hp: 150, spread: .65, sp: .008, dep: 1800, radar: 160, pw: 1.5,
     d: 'Главное средство против баллистики (до 35 км). Дивизион рассредоточен: одним попаданием его не уничтожить, но повреждённый работает хуже. Ракета стоит четыре миллиона — тратить её на «мопеды» нельзя. Главная цель для противника. Можно докупить, если накопить бюджет.',
-    w: { kind: 'missile', r: 80, rb: 35, rate: 5, am: 8, msp: 1.6, mc: 4, reserve: 4, pk: { drone: .85, decoy: .87, loiter: .85, jet: .85, recon: .85, ewuav: .85, arm: .8, cruise: .88, ballistic: .72, aeroball: .55, fpv: 0.4} },
+    w: { kind: 'missile', r: 80, rb: 35, rate: 5, am: 8, msp: 1.6, mc: 4, reserve: 4, pk: { drone: .85, decoy: .87, loiter: .85, jet: .85, recon: .85, ewuav: .85, arm: .8, cruise: .88, ballistic: .72, aeroball: .55, fpv: .4, mother: .85} },
     rl: { t: 2700 }
   }
 };

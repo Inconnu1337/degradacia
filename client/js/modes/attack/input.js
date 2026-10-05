@@ -5,10 +5,11 @@
    ============================================================ */
 
 const AttackInput = (() => {
-  function pickAt(sp) {
+  /** что под курсором; noThreats — не брать свои борта (клик по карте выбирает цель, а не дрон над ней) */
+  function pickAt(sp, noThreats) {
     let best = null, bd = 1e9;
     const consider = (d, hit) => { if (d < bd) { bd = d; best = hit; } };
-    for (const th of G.threats) {
+    if (!noThreats) for (const th of G.threats) {
       if (th.dead) continue;
       const q = w2s(th);
       consider(Math.hypot(q.x - sp.x, q.y - sp.y) < 18 ? Math.hypot(q.x - sp.x, q.y - sp.y) : 1e9, { type: 't', id: th.id });
@@ -31,7 +32,8 @@ const AttackInput = (() => {
     if (!G || G.phase === 'debrief' || G.phase === 'final') return;
     const p = ensurePlan();
     const w = s2w(sp);
-    const hit = pickAt(sp);
+    /* объект или контакт под своим же бортом важнее борта: иначе клик по цели «проваливается» */
+    const hit = pickAt(sp, true) || pickAt(sp);
     if (G.mode && G.mode.t === 'retarget') {
       const gid = G.mode.gid;
       let tgt;
@@ -42,8 +44,18 @@ const AttackInput = (() => {
       cmd('retarget', { id: gid, tgt }).then(() => { lastRC = ''; uiDirty() });
       return;
     }
-    if (routeOnly(p.k) || (G.mode && G.mode.t === 'route')) {
+    if (routeOnly(p.k)) {
       addRoutePoint(w);
+      return;
+    }
+    /* «Свой маршрут»: пустое место — излом, объект или контакт — цель (и маршрут готов) */
+    if (G.mode && G.mode.t === 'route') {
+      if (hit && (hit.type === 'o' || hit.type === 'k')) {
+        G.mode = null; hint('');
+        if (hit.type === 'o') setAimObj(objById(hit.id));
+        else { const k = knowById(hit.id); if (k) setAimContact(k); }
+        toast(p.wps.length ? `Цель выбрана, изломов: ${p.wps.length}` : 'Цель выбрана', 'i');
+      } else addRoutePoint(w);
       return;
     }
     if (hit && hit.type === 'o') setAimObj(objById(hit.id));

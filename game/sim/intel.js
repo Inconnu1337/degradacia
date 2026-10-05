@@ -6,7 +6,7 @@
 
 /* ---------- сообщения от населения ---------- */
 function civIntel() {
-  const near = G.threats.find(th => !th.dead && ['drone', 'decoy', 'loiter', 'fpv'].includes(th.cls) &&
+  const near = G.threats.find(th => !th.dead && ['drone', 'decoy', 'loiter', 'fpv', 'mother'].includes(th.cls) &&
     WD.cities.some(c => !c.enemy && dist(c, th) < 15));
   if (near) {
     const c = nearCity(near);

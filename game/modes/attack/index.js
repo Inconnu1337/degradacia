@@ -42,6 +42,7 @@ defineMode({
   onThreatKilled: atkLoss,
   onNavLost: atkEw,
   onLaunch: atkLaunchNote,
+  onBrood: atkBrood,
 
   debrief: AttackFlow.endNight,
   finalScreen: AttackFlow.finalScreen,

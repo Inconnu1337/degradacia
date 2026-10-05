@@ -23,7 +23,7 @@ function eGroup(kind, n, zone, tgt, o) {
   };
   E.groups.push(g);
   const spc = o.spacing != null ? o.spacing
-    : (T.cls === 'drone' || T.cls === 'decoy' || T.cls === 'loiter') ? R(40, 110)
+    : (T.cls === 'drone' || T.cls === 'decoy' || T.cls === 'loiter' || T.cls === 'mother') ? R(40, 110)
       : T.cls === 'cruise' ? R(15, 40) : (T.cls === 'recon' || T.cls === 'ewuav') ? 0 : R(8, 20);
   for (let i = 0; i < n; i++) {
     const ap = ball ? [{ x: aim.x + R(-.15, .15), y: aim.y + R(-.15, .15) }]
@@ -41,12 +41,13 @@ const approx = n => n <= 3 ? String(n) : Math.max(1, Math.round(n * .75)) + '–
 function intelFor(g) {
   const z = g.zone, k = g.kind;
   const fl = Math.max(1, Math.round((g.arrive - g.launch) / 60));
-  if (k === 'jalo' || k === 'moth' || k === 'strizh' || k === 'shershen') {
+  if (k === 'jalo' || k === 'moth' || k === 'strizh' || k === 'shershen' || k === 'ulei') {
     const key = (g.wave || g.id) + '|' + z.id;
-    const w = E.wi[key] || (E.wi[key] = { t: g.launch, n: 0, z, jet: 0, loi: 0 });
+    const w = E.wi[key] || (E.wi[key] = { t: g.launch, n: 0, z, jet: 0, loi: 0, mom: 0 });
     w.t = Math.min(w.t, g.launch); w.n += g.n;
     if (k === 'strizh') w.jet += g.n;
     if (k === 'shershen') w.loi += g.n;
+    if (k === 'ulei') w.mom += g.n;
   }
   else if (k === 'grach') {
     intelAt(g.launch + R(120, 600), `Пуски БпЛА из района ${z.n}; по характеру сигналов возможны противорадиолокационные аппараты.`, 'C-2', 'w', .7);
@@ -63,7 +64,7 @@ function intelFor(g) {
 function flushWaveIntel() {
   for (const key in E.wi) {
     const w = E.wi[key];
-    const extra = [w.jet ? 'в том числе реактивные' : '', w.loi ? 'возможны барражирующие' : ''].filter(Boolean).join(', ');
+    const extra = [w.jet ? 'в том числе реактивные' : '', w.loi ? 'возможны барражирующие' : '', w.mom ? 'крупные борта — возможны носители FPV' : ''].filter(Boolean).join(', ');
     intelAt(w.t + R(120, 600),
       `Мониторинг: пуски ударных БпЛА из района ${w.z.n}, ориентировочно ${approx(w.n)}${extra ? ', ' + extra : ''}.`,
       'B-2', 'w', .85);

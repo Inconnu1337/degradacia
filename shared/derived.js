@@ -93,10 +93,10 @@ const REPAIR_HP = 35;
 const canBuy = k => G.budget >= UT[k].cost;
 
 /* ---------- налёт ---------- */
-const ATK_KINDS = ['fpv', 'jalo', 'moth', 'shershen', 'strizh', 'sova', 'vual', 'grach', 'krechet', 'albatros', 'molot', 'garpia'];
+const ATK_KINDS = ['fpv', 'ulei', 'jalo', 'moth', 'shershen', 'strizh', 'sova', 'vual', 'grach', 'krechet', 'albatros', 'molot', 'garpia'];
 
 /** залп по умолчанию для каждого средства */
-const ATK_N = { fpv: 4, jalo: 8, moth: 4, shershen: 2, strizh: 2, sova: 1, vual: 1, grach: 2, krechet: 2, albatros: 4, molot: 1, garpia: 1 };
+const ATK_N = { fpv: 4, ulei: 2, jalo: 8, moth: 4, shershen: 2, strizh: 2, sova: 1, vual: 1, grach: 2, krechet: 2, albatros: 4, molot: 1, garpia: 1 };
 
 /** «Сова» и «Вуаль» идут только по точкам маршрута */
 function routeOnly(k) {

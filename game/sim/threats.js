@@ -16,6 +16,7 @@ function spawnThreat(q) {
     alt, idDecoy: false, idLv: 0, obs: 0, t0: G.t, vis: false,
     armTgt: null, loiterT: 0, retgt: 0, degraded: false, hunt: null
   };
+  if (q.mom != null) { th.mom = q.mom; th.flown = q.flown || 0 }
   const p = th.path[0], d = Math.hypot(p.x - th.x, p.y - th.y) || 1;
   th.hx = (p.x - th.x) / d; th.hy = (p.y - th.y) / d;
   G.threats.push(th);
@@ -76,6 +77,7 @@ function threatsStep(dt) {
   for (const th of G.threats) {
     if (th.dead) continue;
     const T = TT[th.k];
+    if (T.brood && motherStep(th, dt)) continue;
 
     if (T.arm && !th.lost && (G.t - (th.armT || 0)) > 20) { th.armT = G.t; armSeek(th) }
     if (T.hunt && fpvStep(th, dt)) continue;
@@ -114,8 +116,8 @@ function impact(th) {
   th.dead = true;
   const T = TT[th.k], g = E.groups.find(g => g.id === th.gid);
 
-  /* разведчик и постановщик помех уходят домой — без взрыва */
-  if (th.cls === 'recon' || th.cls === 'ewuav') return;
+  /* разведчик, постановщик помех и опустевший носитель уходят домой — без взрыва */
+  if (th.cls === 'recon' || th.cls === 'ewuav' || th.cls === 'mother') return;
 
   if (th.lost) {
     const c = inCity(th);
@@ -169,7 +171,9 @@ function impact(th) {
   for (const ob of G.objs) { const d = dist(ob, p); if (d < bd) { bd = d; o = ob } }
   if (o && o.hp > 0) {
     /* под тревогой объект переведён в аварийный режим: агрегаты остановлены, люди в укрытиях — ущерб меньше */
-    const dmg = T.wh * R(.7, 1.3) / OT[o.type].hard * (T.hunt ? .25 : 1) * (G.alarm ? .8 : 1);
+    /* FPV бьёт слабо, но точно: трансформатор подстанции выводит из строя всерьёз */
+    const fpvK = T.hunt ? (o.type === 'sub' ? 1.1 : .5) : 1;
+    const dmg = T.wh * R(.7, 1.3) / OT[o.type].hard * fpvK * (G.alarm ? .8 : 1);
     const before = o.hp;
     o.hp = Math.max(0, o.hp - dmg);
     o.hitT = G.t;
@@ -216,13 +220,24 @@ function unitDestroyed(u, th, how) {
   uiDirty();
 }
 
-/* ---------- FPV: ищет технику у переднего края ----------
+/* ---------- FPV: ищет технику ----------
    Летит к точке, по пути и на месте осматривается камерой (дальность
-   зависит от погоды), находит машину — идёт в неё. Батарея кончается
-   через range км от точки пуска. Возвращает true, если шаг уже сделан. */
+   зависит от погоды), выбирает самую ценную машину в поле зрения и идёт
+   в неё. Всё, что увидела камера, оператор передаёт в разведку (E.know).
+   Батарея кончается через range км от точки пуска (у сброшенных «Ульем» —
+   свой остаток). FPV из «Улья» держат связь через носитель: сбили носитель —
+   рой без управления. Возвращает true, если шаг уже сделан. */
+const FPV_EYE = 5;
+
 function fpvStep(th, dt) {
   const T = TT[th.k];
   if (th.lost) return false;
+  /* связь через носитель */
+  if (th.mom != null && !G.threats.some(m => m.id === th.mom && !m.dead && !m.lost)) {
+    th.lost = true;
+    th.path = [{ x: th.x + R(-.8, .8), y: th.y + R(-.8, .8) }];
+    return false;
+  }
   /* батарея и погода */
   const flown = (th.flown = (th.flown || 0) + T.sp * windMul(th) * dt);
   if (flown > T.range || !G.weather.fpv) {
@@ -232,12 +247,16 @@ function fpvStep(th, dt) {
   }
   if (G.t - (th.lookT || -1e9) > 6) {
     th.lookT = G.t;
-    const eye = 5 * G.weather.fpv * (G.weather.eo || 1);
-    let best = null, bd = eye;
+    const eye = FPV_EYE * G.weather.fpv * (G.weather.eo || 1);
+    let best = null, bs = 0, bd = 0;
     for (const u of G.units) {
       if (u.hp <= 0 || UT[u.k].air || (u.st === 'air')) continue;
       const d = dist(u, th);
-      if (d < bd) { bd = d; best = u }
+      if (d > eye) continue;
+      fpvSpot(th, u);
+      /* дорогая техника важнее ближней: «Щит» в 4 км лучше поста в 1 км */
+      const sc = Math.sqrt(UT[u.k].cost + 1) / (1 + d / 2) * (u.id === th.hunt ? 1.3 : 1);
+      if (sc > bs) { bs = sc; best = u; bd = d }
     }
     if (best) {
       if (th.hunt !== best.id) {
@@ -248,10 +267,69 @@ function fpvStep(th, dt) {
       th.path = [{ x: best.x, y: best.y }];
     }
   }
-  /* дошёл до точки без цели — кружит и ищет */
-  if (!th.hunt && th.path.length === 1 && dist(th, th.path[0]) < 1) {
+  /* дошёл до точки без цели — кружит и ищет (по объекту — бьёт в объект) */
+  if (!th.hunt && !(th.tgt && th.tgt.obj) && th.path.length === 1 && dist(th, th.path[0]) < 1) {
     const a = R(0, 6.28);
     th.path = [{ x: th.x + Math.cos(a) * 3, y: th.y + Math.sin(a) * 3 }];
   }
+  return false;
+}
+
+/** камера FPV: оператор видит технику вблизи и передаёт координаты */
+function fpvSpot(th, u) {
+  const k = eKnow(u);
+  if (k.conf >= .85 && G.t - k.t < 120) return;
+  /* макет вблизи на видео выдаёт себя — но не всегда */
+  if (u.k === 'decoy') k.type = chance(.55) ? 'decoy' : 'shield';
+  else k.type = u.k;
+  k.conf = Math.max(k.conf, .85); k.src = 'FPV';
+  setKnowPos(k, u, .25);
+  if (['bastion', 'shield', 'krom', 'spaag', 'horizon', 'ew'].includes(k.type) && !k.fpvRep) {
+    k.fpvRep = 1;
+    const nc = nearCity(u);
+    mind(`Камера FPV, кв. ${sq(u)}: ${UT[k.type].n}${nc ? ' у ' + nc.gen : ''}. Координаты уточнены.`);
+  }
+}
+
+/* ---------- «Улей»: носитель FPV ----------
+   Летит к цели как обычный дрон. За T.drop км до неё сбрасывает T.brood
+   FPV и кружит рядом ретранслятором, пока рой жив (не дольше получаса),
+   потом уходит домой. Возвращает true, если шаг уже сделан. */
+function motherStep(th, dt) {
+  const T = TT[th.k];
+  if (th.lost) return false;
+  if (!th.dropped) {
+    const aim = th.tgt ? aimOf(th.tgt) : null;
+    if (!aim || dist(th, aim) > T.drop || !G.weather.fpv) return false;
+    th.dropped = G.t;
+    th.orbC = { x: th.x, y: th.y };
+    const F = TT.fpv;
+    for (let i = 0; i < T.brood; i++) {
+      const a = R(0, 6.28);
+      const p = { x: aim.x + Math.cos(a) * R(0, 2), y: aim.y + Math.sin(a) * R(0, 2) };
+      const c = {
+        id: G.idc++, k: 'fpv', cls: 'fpv', x: th.x + R(-.3, .3), y: th.y + R(-.3, .3), sx: th.x, sy: th.y,
+        path: [p], tgt: th.tgt, gid: th.gid, hx: th.hx, hy: th.hy, seen: -1e9, first: null, eng: 0, dead: false, lost: false,
+        alt: 'low', idDecoy: false, idLv: 0, obs: 0, t0: G.t, vis: false,
+        armTgt: null, loiterT: 0, retgt: 0, degraded: false, hunt: null,
+        mom: th.id, flown: F.range - T.broodRange
+      };
+      G.threats.push(c);
+      S.launched.fpv++;
+    }
+    if (MODE.onBrood) MODE.onBrood(th);
+    return false;
+  }
+  /* ретранслятор: кружит у точки сброса, пока рой в воздухе */
+  const alive = G.threats.some(c => c.mom === th.id && !c.dead && !c.lost);
+  if (alive && G.t - th.dropped < 1800) {
+    th.orb = (th.orb == null ? R(0, 6.28) : th.orb) + dt * T.sp * windMul(th) / 3;
+    const nx = th.orbC.x + Math.cos(th.orb) * 3, ny = th.orbC.y + Math.sin(th.orb) * 3;
+    th.hx = nx - th.x; th.hy = ny - th.y;
+    const L = Math.hypot(th.hx, th.hy) || 1; th.hx /= L; th.hy /= L;
+    th.x = nx; th.y = ny;
+    return true;
+  }
+  if (!th.home) { th.home = 1; th.path = [{ x: th.sx, y: th.sy }] }
   return false;
 }

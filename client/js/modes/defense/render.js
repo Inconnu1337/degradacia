@@ -213,14 +213,14 @@ const DefenseRender = (() => {
       if (!onScreen(q, 60)) continue;
       const col = thColor(th);
       const big = ['cruise', 'ballistic', 'aeroball'].includes(th.cls);
-      let L = clamp(s * (big ? 3.2 : 2.4), big ? 18 : 14, big ? 60 : 44);
+      let L = clamp(s * (big ? 3.2 : 2.4), big ? 18 : 14, big ? 60 : 44) * (th.idLv > 0 && AIR_SIZE[th.cls] || 1);
       cx.save();
       cx.translate(q.x, q.y);
       if (lost) { cx.globalAlpha = clamp(1 - age / 200, .18, .55) }
       cx.rotate(Math.atan2(th.hy, th.hx));
       cx.scale(L, L);
       const art = th.idLv <= 0 ? ART_AIR.unknown : (ART_AIR[th.cls] || ART_AIR.drone);
-      art(cx, col, GANIM);
+      art(cx, col, GANIM, th);
       cx.restore();
       /* рамка выделения и метка */
       if (selT === th.id) {

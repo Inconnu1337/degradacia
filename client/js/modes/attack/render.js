@@ -105,9 +105,9 @@ const AttackRender = (() => {
       if (!onScreen(q, 50)) continue;
       const col = AIR_COL[th.cls] || '#fff';
       const big = ['cruise', 'ballistic', 'aeroball'].includes(th.cls);
-      const L = clamp(s * (big ? 3 : 2.2), big ? 16 : 13, big ? 54 : 40);
+      const L = clamp(s * (big ? 3 : 2.2), big ? 16 : 13, big ? 54 : 40) * (AIR_SIZE[th.cls] || 1);
       cx.save(); cx.translate(q.x, q.y); cx.rotate(Math.atan2(th.hy, th.hx)); cx.scale(L, L);
-      (ART_AIR[th.cls] || ART_AIR.drone)(cx, col, GANIM);
+      (ART_AIR[th.cls] || ART_AIR.drone)(cx, col, GANIM, th);
       cx.restore();
       if (selT === th.id) {
         cx.strokeStyle = '#f2b33d'; cx.lineWidth = 1.5;
@@ -150,9 +150,22 @@ const AttackRender = (() => {
       cx.strokeStyle = '#ff5b47'; cx.lineWidth = 1.6;
       cx.beginPath(); cx.moveTo(q.x - 7, q.y); cx.lineTo(q.x + 7, q.y); cx.moveTo(q.x, q.y - 7); cx.lineTo(q.x, q.y + 7); cx.stroke();
     }
+    /* выбранный объект — красные уголки прицела, чтобы было видно, куда уйдёт удар */
+    if (!routeOnly(p.k) && p.tgt && p.tgt.obj) {
+      const o = objById(p.tgt.obj.id) || p.tgt.obj, q = w2s(o);
+      const r = clamp(12 + G.view.s * 2.6, 16, 40) + Math.sin(GANIM * 4) * 2, c = r * .45;
+      cx.strokeStyle = '#ff5b47'; cx.lineWidth = 2;
+      for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+        cx.beginPath();
+        cx.moveTo(q.x + sx * r, q.y + sy * (r - c)); cx.lineTo(q.x + sx * r, q.y + sy * r); cx.lineTo(q.x + sx * (r - c), q.y + sy * r);
+        cx.stroke();
+      }
+      cx.font = '600 10px system-ui, sans-serif'; cx.textAlign = 'center'; cx.fillStyle = '#ff8f80';
+      cx.fillText('ЦЕЛЬ', q.x, q.y + r + 12);
+    }
     if (routeOnly(p.k) || (G.mode && G.mode.t === 'route')) {
       cx.font = '600 12px system-ui, sans-serif'; cx.textAlign = 'center';
-      const txt = routeOnly(p.k) ? 'Маршрут разведчика: каждый клик — точка, ПКМ — убрать' : 'Клик — цель в точке. Свой маршрут — изломы до неё';
+      const txt = routeOnly(p.k) ? 'Маршрут разведчика: каждый клик — точка, ПКМ — убрать' : 'Свой маршрут: клик по карте — излом, по объекту или контакту — цель. ПКМ — выйти';
       const w = cx.measureText(txt).width + 22;
       cx.fillStyle = 'rgba(28,24,16,.92)';
       rr(cx, CW / 2 - w / 2, 12, w, 26, 6); cx.fill();

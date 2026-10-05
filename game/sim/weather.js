@@ -75,7 +75,7 @@ function weatherStep() {
 }
 
 /** лёгкие тихоходные цели, которых сносит ветер и которые обледеневают */
-const WIND_CLS = { drone: 1, decoy: 1, loiter: 1, fpv: 1, recon: 1, ewuav: 1 };
+const WIND_CLS = { drone: 1, decoy: 1, loiter: 1, fpv: 1, mother: 1, recon: 1, ewuav: 1 };
 
 /** множитель скорости цели от ветра (попутный — быстрее, встречный — медленнее) */
 function windMul(th) {

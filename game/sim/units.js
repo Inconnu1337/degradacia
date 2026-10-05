@@ -261,7 +261,7 @@ function killThreat(th, u) {
 function debris(th, u) {
   const c = inCity(th);
   if (!c) return;
-  const p = { drone: .25, decoy: .1, loiter: .2, jet: .3, recon: .1, ewuav: .1, arm: .25, cruise: .35, ballistic: .45, aeroball: .45 }[th.cls];
+  const p = { drone: .25, decoy: .1, loiter: .2, mother: .2, fpv: .02, jet: .3, recon: .1, ewuav: .1, arm: .25, cruise: .35, ballistic: .45, aeroball: .45 }[th.cls];
   if (!chance(p)) return;
   const n = Math.max(0, Math.round(RI(0, 4) * alarmMul()));
   civLoss(n);
@@ -475,7 +475,7 @@ function ewStep(dt) {
    PATROL_R от центра по данным всей сети, догоняет и бьёт пулемётом,
    потом возвращается на круг. Топливо — сам на заправку и обратно. */
 const PATROL_R = 24;
-const HELI_PREY = { drone: 1, decoy: 1, loiter: 1, recon: 1, ewuav: 1, fpv: 1, arm: 1 };
+const HELI_PREY = { drone: 1, decoy: 1, loiter: 1, recon: 1, ewuav: 1, fpv: 1, mother: 1, arm: 1 };
 
 function patrolCenter(pt) {
   if (pt.obj) { const o = objById(pt.obj); if (o) { pt.x = o.x; pt.y = o.y } }

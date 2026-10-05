@@ -5,10 +5,10 @@
 
 /* ---------- районы пуска противника ---------- */
 const ZONES = [
-  { id: 'tarsk', n: 'Тарск', x: 462, y: 50, r: 8, k: ['jalo', 'moth', 'shershen', 'strizh', 'grach', 'vual', 'molot', 'sova'] },
-  { id: 'belsk', n: 'Бельск', x: 470, y: 198, r: 8, k: ['jalo', 'moth', 'shershen', 'strizh', 'grach', 'vual', 'molot', 'sova'] },
-  { id: 'sarma', n: 'полуостров Сарма', x: 402, y: 336, r: 6, k: ['jalo', 'moth', 'shershen', 'grach', 'molot', 'sova'] },
-  /* передний край: отсюда летят FPV-дроны, дальше 45 км они не долетают */
+  { id: 'tarsk', n: 'Тарск', x: 462, y: 50, r: 8, k: ['jalo', 'moth', 'shershen', 'ulei', 'strizh', 'grach', 'vual', 'molot', 'sova'] },
+  { id: 'belsk', n: 'Бельск', x: 470, y: 198, r: 8, k: ['jalo', 'moth', 'shershen', 'ulei', 'strizh', 'grach', 'vual', 'molot', 'sova'] },
+  { id: 'sarma', n: 'полуостров Сарма', x: 402, y: 336, r: 6, k: ['jalo', 'moth', 'shershen', 'ulei', 'grach', 'molot', 'sova'] },
+  /* передний край: отсюда летят FPV-дроны, дальше 50 км они не долетают */
   { id: 'frn', n: 'передний край, север', x: 412, y: 70, r: 10, k: ['fpv'], front: 1 },
   { id: 'frc', n: 'передний край, центр', x: 428, y: 165, r: 10, k: ['fpv'], front: 1 },
   { id: 'frs', n: 'передний край, юг', x: 408, y: 255, r: 10, k: ['fpv'], front: 1 },

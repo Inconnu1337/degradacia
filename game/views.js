@@ -43,7 +43,7 @@ function threatDefV(th) {
     sp: TT[th.k].sp,
     x: lost ? th.lx : th.x, y: lost ? th.ly : th.y, lx: th.lx, ly: th.ly,
     hx: th.hx, hy: th.hy, seen: th.seen, vis: !!th.vis, idLv: th.idLv, idDecoy: !!th.idDecoy,
-    alt: th.alt, eng: th.eng, lost: th.lost, armTgt: th.armTgt || null, dead: false,
+    alt: th.alt, eng: th.eng, lost: th.lost, armTgt: th.armTgt || null, dead: false, br: known && th.dropped ? 1 : 0,
     path: known && ball && th.path.length ? [pt(th.path[th.path.length - 1])] : []
   };
 }
@@ -52,7 +52,7 @@ function threatDefV(th) {
 function threatAtkV(th) {
   return {
     id: th.id, k: th.k, cls: th.cls, sp: TT[th.k].sp, x: th.x, y: th.y, hx: th.hx, hy: th.hy,
-    alt: th.alt, lost: th.lost, dead: false, idLv: 2, seen: th.seen, vis: !!th.vis,
+    alt: th.alt, lost: th.lost, dead: false, idLv: 2, seen: th.seen, vis: !!th.vis, br: th.dropped ? 1 : 0,
     path: th.path.map(pt)
   };
 }

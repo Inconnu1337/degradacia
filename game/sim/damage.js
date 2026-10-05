@@ -20,7 +20,7 @@ const NIGHT_REP_T = 2700;        /* работа ремонтников, с */
 const UNIT_REP_T = 1800;         /* полевой ремонт техники, с */
 
 /* насколько охотно поджигает класс средства */
-const IGNITE = { drone: .45, loiter: .35, jet: .5, arm: .3, cruise: .7, ballistic: .6, aeroball: .6, fpv: .5 };
+const IGNITE = { drone: .45, loiter: .35, jet: .5, arm: .3, cruise: .7, ballistic: .6, aeroball: .6, fpv: .5, mother: .3 };
 
 function resetCrews() { G.crews = { fire: CREWS_PER_NIGHT.fire, rep: CREWS_PER_NIGHT.rep } }
 

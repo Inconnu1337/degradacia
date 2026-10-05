@@ -80,6 +80,32 @@ const DefenseAI = (() => {
     }
   }
 
+  /* ---------- FPV: охота у переднего края и «Ульи» вглубь ----------
+   Каждую ночь, если погода позволяет: несколько пакетов FPV с переднего
+   края на «свободную охоту» за постами и мобильными группами в 20–40 км
+   от линии фронта, и «Ульи» — носители FPV — по вскрытым ЗРК или по
+   главной цели ночи. */
+  function frontHunt(posture, S0, kn, t0) {
+    if (!G.weather.fpv) return;
+    const st = E.stock;
+    const fronts = ZONES.filter(z => z.front && z.k.includes('fpv'));
+    const packs = Math.min(RI(1, 3), Math.floor((st.fpv || 0) / 4));
+    for (let i = 0; i < packs; i++) {
+      const z = pick(fronts), a = Math.PI + R(-.6, .6), r = R(20, 40);
+      const aim = { x: z.x + Math.cos(a) * r, y: z.y + Math.sin(a) * r };
+      if (side(aim.x, aim.y) !== 1) continue;
+      eGroup('fpv', 4, z, { aim }, { launch: t0 + R(.5, 8) * 3600, style: 'direct', op: 'охота' });
+    }
+    if (packs > 0) mind(`Передний край: ${packs} ${packs > 1 ? 'пакета' : 'пакет'} FPV на свободную охоту — выбить посты наблюдения и мобильные группы у линии фронта.`);
+    if (!(st.ulei > 0)) return;
+    const sam = kn.find(k => k.conf >= .45);
+    const nU = Math.min(st.ulei, posture === 'sead' ? 3 : posture === 'massive' ? 2 : chance(.5) ? 1 : 0);
+    if (!nU) return;
+    const tg = sam && posture !== 'massive' ? { aim: { x: sam.x, y: sam.y, uid: sam.uid } } : { obj: S0[0].o };
+    eGroup('ulei', nU, eZone('ulei', aimOf(tg)), tg, { launch: t0 + R(2, 7) * 3600, op: 'рой', wave: 'mom' });
+    mind(`${nU}× «Улей» с FPV — по ${tg.obj ? '«' + tg.obj.n + '»' : UT[sam.type].n + ' (уверенность ' + pc(sam.conf) + ')'}: пусть рой ищет технику у цели.`);
+  }
+
   /* ---------- план на ночь ---------- */
   function planNight() {
     const n = G.night, st = E.stock, t0 = G.t;
@@ -239,6 +265,8 @@ const DefenseAI = (() => {
       E.reserve = st.jalo > 30 ? { kind: 'jalo', n: Math.min(st.jalo, 20), why: 'добить объект, где обнаружится дыра в обороне' } : null;
       E.jamBase = .12;
     }
+
+    if (n > 1) frontHunt(posture, S0, kn, t0);
 
     flushWaveIntel();
     /* сообщения от населения в течение ночи */

@@ -71,7 +71,7 @@ function launchStrike(p) {
   if (when + (Math.min(n, E.stock[k]) - 1) * spacing > NIGHT_LEN - 900)
     return fail(busy ? `Пусковые района «${zone.n}» заняты до ${clock(when)}: до рассвета пакет не успеет` : 'До рассвета этот пуск не успевает');
 
-  if (TT[k].rc && !G.weather.fpv) return fail(`Погода нелётная для FPV: ${G.weather.n.toLowerCase()}`);
+  if ((TT[k].rc || TT[k].brood) && !G.weather.fpv) return fail(`Погода нелётная для FPV: ${G.weather.n.toLowerCase()}`);
   /* FPV летит недалеко: цель должна быть в пределах дальности от района пуска */
   if (TT[k].range && !patrol && dist(zone, aimOf(tgt)) > TT[k].range - 4)
     return fail(`Далеко: «${TT[k].n}» летит не дальше ${TT[k].range} км от района пуска`);
@@ -121,6 +121,13 @@ function atkLaunchNote(q) {
   g._noted = 1;
   hq(pick([`В воздухе: ${g.n}× ${TT[q.k].n} из района «${g.zone.n}».`, `Пусковые «${g.zone.n}»: пакет ушёл, ${g.n}× ${TT[q.k].n}.`,
     `Старт подтверждаю: ${TT[q.k].n}, ${g.n} шт., район «${g.zone.n}».`, `Расчёты «${g.zone.n}» докладывают: пуск ${g.n}× ${TT[q.k].n}.`]), 'hq');
+}
+
+function atkBrood(th) {
+  if (G.t - (G.broodT || -999) < 30) return;
+  G.broodT = G.t;
+  hq(pick([`«${TT[th.k].n}» в кв. ${sq(th)}: рой сброшен, операторы ведут FPV.`, `Сброс FPV с «${TT[th.k].n}», кв. ${sq(th)}. Носитель держит связь.`,
+    `«${TT[th.k].n}» отработал сброс в кв. ${sq(th)}, FPV ищут цели.`]), 'hq');
 }
 
 function atkLoss(th) {

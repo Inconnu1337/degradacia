@@ -19,7 +19,7 @@
      finalScreen()        итоги кампании для каждой стороны
      campaignOver()       true — это была последняя ночь
      onNightOpen()        ночь началась
-     onThreatKilled(th,u) · onNavLost(th) · onLaunch(q)
+     onThreatKilled(th,u) · onNavLost(th) · onLaunch(q) · onBrood(th)
    Радиообмен (фасад в core/dispatch.js)
      say / intelAt / mind / ask / answerReq
    Флаги
@@ -50,7 +50,7 @@ const BaseMode = {
   debrief() { G.phase = 'debrief'; G.speed = 0 },
   finalScreen() { G.phase = 'final' },
   campaignOver() { return G.night >= NIGHTS_TOTAL || energy() < 15 },
-  onNightOpen() { }, onThreatKilled() { }, onNavLost() { }, onLaunch() { },
+  onNightOpen() { }, onThreatKilled() { }, onNavLost() { }, onLaunch() { }, onBrood() { },
 
   commands: {}
 };

@@ -133,14 +133,17 @@ function drawObjects(s) {
 function drawMissiles(s) {
   for (const m of G.miss) {
     const q = w2s(m);
+    /* дымный след: у хвоста тоньше и прозрачнее, у ракеты — плотнее */
     if (m.trail.length > 3) {
-      cx.strokeStyle = 'rgba(150,220,255,.35)'; cx.lineWidth = 1.2;
-      cx.beginPath();
-      for (let i = 0; i < m.trail.length; i += 2) {
-        const p = w2s({ x: m.trail[i], y: m.trail[i + 1] });
-        i ? cx.lineTo(p.x, p.y) : cx.moveTo(p.x, p.y);
+      const n = m.trail.length / 2, drone = m.kind === 'drone';
+      let prev = w2s({ x: m.trail[0], y: m.trail[1] });
+      for (let i = 1; i < n; i++) {
+        const p = w2s({ x: m.trail[i * 2], y: m.trail[i * 2 + 1] }), k = i / n;
+        cx.strokeStyle = drone ? `rgba(150,220,255,${.08 + k * .3})` : `rgba(215,225,232,${.06 + k * .4})`;
+        cx.lineWidth = drone ? 1 : .8 + (1 - k) * 2.6;
+        cx.beginPath(); cx.moveTo(prev.x, prev.y); cx.lineTo(p.x, p.y); cx.stroke();
+        prev = p;
       }
-      cx.stroke();
     }
     if (!onScreen(q, 40)) continue;
     const L = m.kind === 'drone' ? clamp(s * 1.1, 8, 20) : clamp(s * 1.6, 11, 30);

@@ -38,7 +38,7 @@ function eRoute(a, tg, cls, style) {
   }
   const cands = [[{ x: tg.x, y: tg.y }]];
   const ang0 = Math.atan2(a.y - tg.y, a.x - tg.x);
-  const lim = { drone: 780, decoy: 640, loiter: 700, jet: 620, recon: 520, ewuav: 520, arm: 700, cruise: 1000 }[cls] || 700;
+  const lim = { drone: 780, decoy: 640, loiter: 700, mother: 720, jet: 620, recon: 520, ewuav: 520, arm: 700, cruise: 1000 }[cls] || 700;
   for (let i = 0; i < 14; i++) {
     const off = (chance(.5) ? -1 : 1) * R(.5, 2.6), rr = R(18, cls === 'cruise' ? 90 : 60);
     const w2 = { x: tg.x + Math.cos(ang0 + off) * rr, y: tg.y + Math.sin(ang0 + off) * rr };
