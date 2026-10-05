@@ -13,16 +13,19 @@
    бригада может не вернуться.
    ============================================================ */
 
-const CREWS_PER_NIGHT = { fire: 3, rep: 2 };
-const FIGHT_COST = 1;            /* выезд пожарных, млн */
+const CREWS_PER_NIGHT = { fire: 4, rep: 3 };
 const NIGHT_REP_HP = 20;         /* ремонт ночью: меньше, чем днём */
 const NIGHT_REP_T = 2700;        /* работа ремонтников, с */
+const FIRE_DMG = .0012;          /* потеря состояния объекта в секунду при пожаре силы 1, % */
 const UNIT_REP_T = 1800;         /* полевой ремонт техники, с */
 
 /* насколько охотно поджигает класс средства */
-const IGNITE = { drone: .45, loiter: .35, jet: .5, arm: .3, cruise: .7, ballistic: .6, aeroball: .6, fpv: .5, mother: .3 };
+const IGNITE = { drone: .45, loiter: .35, jet: .5, arm: .3, cruise: .7, ballistic: .6, aeroball: .6, fpv: .5, mother: .3, kab: .65 };
 
-function resetCrews() { G.crews = { fire: CREWS_PER_NIGHT.fire, rep: CREWS_PER_NIGHT.rep } }
+function resetCrews() {
+  const b = G.crewBonus ? 2 : 0;   /* предложение партнёров: дополнительные бригады на ночь */
+  G.crews = { fire: CREWS_PER_NIGHT.fire + b, rep: CREWS_PER_NIGHT.rep + b };
+}
 
 function ignite(target, cls, dmg, cap) {
   if (!chance(IGNITE[cls] || .3)) return false;
@@ -41,10 +44,10 @@ function fireStep(dt) {
     if (o.fire > 0) {
       /* огонь разгорается на ветру, но выгорает: чем дольше горит, тем меньше пищи */
       o.fireAge = (o.fireAge || 0) + dt;
-      let d = dt * (.00008 * (1 + wind / 12) - .00007 * (wet - 1) - .00003 - .00004 * o.fireAge / 3600);
+      let d = dt * (.00007 * (1 + wind / 12) - .00007 * (wet - 1) - .00004 - .00008 * o.fireAge / 3600);
       if (o.ff && o.ff.st === 'work') d -= dt * .0012;
       o.fire = clamp(o.fire + d, 0, 1);
-      const loss = Math.min(o.hp, o.fire * dt * .003 / OT[o.type].hard);
+      const loss = Math.min(o.hp, o.fire * dt * FIRE_DMG / OT[o.type].hard);
       if (loss > 0) { o.hp -= loss; S.objDmg += loss * o.v / 100; S.fireDmg = (S.fireDmg || 0) + loss * o.v / 100 }
       if (o.fire > .75 && !o.fireLoud) { o.fireLoud = 1; hq(`«${esc(o.n)}»: пожар разгорается, ${G.wind.v >= 8 ? 'ветер раздувает огонь' : 'огонь распространяется по территории'}.`, 'w') }
       if (o.fire <= 0) {
@@ -147,8 +150,6 @@ function nightRepair(o) {
   return { ok: true };
 }
 
-/** стоимость ремонта техники днём (мгновенно) */
-const unitRepCost = u => Math.max(1, Math.round(UT[u.k].cost * .25 * (1 - u.hp / UT[u.k].hp)));
 
 function repairUnit(u) {
   const T = UT[u.k];

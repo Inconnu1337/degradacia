@@ -68,7 +68,7 @@ const DefenseFlow = (() => {
     if (S.uncovered < 300) moraleAdd(3);
     moraleAdd(-(100 - energy()) / 25);
     const mDelta = Math.round(G.morale - mBefore);
-    const gain = Math.round((85 + (rate > .85 ? 25 : 0) + (S.civ === 0 ? 15 : 0)) * moraleMul());
+    const gain = Math.round((120 + (rate > .85 ? 30 : 0) + (S.civ === 0 ? 15 : 0)) * moraleMul());
     const adapt = E.dayNews.length
       ? '<h2>Разведка: изменения у противника</h2><ul>' + E.dayNews.map(t => '<li>' + esc(t) + '</li>').join('') + '</ul>' : '';
 

@@ -33,7 +33,11 @@ const onScreen = (q, m) => q.x > -(m || 60) && q.x < CW + (m || 60) && q.y > -(m
 
 /* ---------- эффекты ---------- */
 /** вспышка на карте; её возраст считается по часам мира — на паузе она замирает */
-function fx(o) { o.t0 = GANIM * 1000; G.fx.push(o); if (G.fx.length > 320) G.fx.shift() }
+function fx(o) {
+  o.t0 = GANIM * 1000;
+  if (o.k === 'boom' || o.k === 'air') blastAdd(o);
+  G.fx.push(o); if (G.fx.length > 320) G.fx.shift();
+}
 
 /* ---------- цвета ---------- */
 function stColor(u) {

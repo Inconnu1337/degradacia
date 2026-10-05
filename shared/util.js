@@ -22,6 +22,7 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const dist2 = (a, b) => (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y);
 
 const sum = a => a.reduce((x, y) => x + y, 0);
+const avg = a => a.length ? sum(a) / a.length : 0;
 
 function shuffled(a) {
   const r = a.slice();

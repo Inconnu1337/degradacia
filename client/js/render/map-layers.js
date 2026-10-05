@@ -31,11 +31,14 @@ function draw(dtms) {
   drawWeather(s);
   drawNames(s);
   if (G.showZones || G.sel) MODE.render.engagement(s);
+  drawScorch(s);
   drawObjects(s);
   MODE.render.hq(s);
   MODE.render.tracks(s);
   MODE.render.units(s);
   drawFires(s);
+  drawSmoke(s);
+  drawTrails(s);
   drawMissiles(s);
   MODE.render.threats(s);
   drawFx(s);
@@ -177,30 +180,8 @@ function drawFx(s) {
       cx.fillStyle = gr;
       cx.beginPath(); cx.arc(a.x, a.y, r, 0, 7); cx.fill();
     }
-    else if (f.k === 'air') {
-      const a = w2s(f);
-      const R0 = clamp(s * (f.small ? .7 : 1.4), 7, 34);
-      cx.strokeStyle = `rgba(190,235,255,${(1 - k) * .85})`;
-      cx.lineWidth = 2 * (1 - k) + .5;
-      cx.beginPath(); cx.arc(a.x, a.y, R0 * (.3 + k * 1.1), 0, 7); cx.stroke();
-      if (!f.small) {
-        cx.fillStyle = `rgba(255,240,200,${(1 - k) * .5})`;
-        cx.beginPath(); cx.arc(a.x, a.y, R0 * .45 * (1 - k), 0, 7); cx.fill();
-      }
-    }
-    else if (f.k === 'boom') {
-      const a = w2s(f);
-      const R0 = clamp(s * (f.small ? 1.1 : 2.4), 10, 60);
-      const gr = cx.createRadialGradient(a.x, a.y, 0, a.x, a.y, R0 * (.4 + k));
-      gr.addColorStop(0, `rgba(255,250,220,${(1 - k) * .9})`);
-      gr.addColorStop(.35, `rgba(255,160,60,${(1 - k) * .7})`);
-      gr.addColorStop(1, 'rgba(120,40,10,0)');
-      cx.fillStyle = gr;
-      cx.beginPath(); cx.arc(a.x, a.y, R0 * (.4 + k), 0, 7); cx.fill();
-      cx.strokeStyle = `rgba(255,220,180,${(1 - k) * .5})`;
-      cx.lineWidth = 1.5;
-      cx.beginPath(); cx.arc(a.x, a.y, R0 * (.5 + k * 1.6), 0, 7); cx.stroke();
-    }
+    else if (f.k === 'air') drawAirBurst(f, k, s);
+    else if (f.k === 'boom') drawBoom(f, k, s);
     else if (f.k === 'fire') {
       const a = w2s(f);
       const R0 = clamp(s * 1.3, 8, 34);

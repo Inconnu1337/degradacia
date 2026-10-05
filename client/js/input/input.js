@@ -100,6 +100,7 @@ function initInput() {
       else G.sel = null;
       uiDirty();
     }
+    else if (k === 'enter' && MODE.input.sendPatrol && MODE.input.sendPatrol()) { /* маршрут патруля отдан */ }
     else if (k === 'z') { G.showZones = !G.showZones; uiDirty() }
     else if (k === 'a') { if (MODE.hud.alarmBtn) cmd('alarm') }
     else if (k === 'h' || k === 'f1') { e.preventDefault(); MODE.ui.help() }

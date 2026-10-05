@@ -130,6 +130,11 @@ function atkBrood(th) {
     `«${TT[th.k].n}» отработал сброс в кв. ${sq(th)}, FPV ищут цели.`]), 'hq');
 }
 
+function atkCrash(th) {
+  hq(pick([`Телеметрия «${TT[th.k].n}» пропала в кв. ${sq(th)}: похоже, задела рельеф на предельно малой высоте.`,
+    `«${TT[th.k].n}» потеряна над кв. ${sq(th)} — столкновение с землёй на огибании рельефа.`]), 'w');
+}
+
 function atkLoss(th) {
   if (!G.lossN) G.lossN = {};
   G.lossN[th.k] = (G.lossN[th.k] || 0) + 1;

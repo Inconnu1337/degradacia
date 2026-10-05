@@ -54,7 +54,7 @@ const thrById = id => G.threats.find(t => t.id === id);
 function newCampaign() {
   csUsed = {};
   G = {
-    night: 1, t: 0, phase: 'prep', speed: 0, budget: 130,
+    night: 1, t: 0, phase: 'prep', speed: 0, budget: 180,
     units: [], threats: [], miss: [], objs: [], reqs: [], comms: [], intelQ: [],
     alarm: false, alarmSince: -1e9, alarmT: 0, alarmTrust: 1,
     idc: 1, jam: 0, acc1: 0,

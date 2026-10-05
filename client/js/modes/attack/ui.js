@@ -151,7 +151,8 @@ const AttackUI = (() => {
       if (grounded) h += `<div class="row"><span class="bad">Погода нелётная для FPV</span></div>`;
       h += `<div class="acts"><button class="btn pri" data-a="launch" ${(E.stock[p.k] || 0) < 1 || left < p.n || late || far || grounded || (patrol && !p.wps.length) ? 'disabled' : ''}>Пуск · ${Math.min(p.n, E.stock[p.k] || 0)}× ${esc(T.n)}</button></div>`;
       if (pl) h += `<div class="row mu"><span>Первый пуск ≈ ${clock(pl.t)}${p.n > 1 ? ', последний ≈ ' + clock(pl.t + (p.n - 1) * pl.gap) : ''}</span><span>${late ? '<b class="bad">не успеть до рассвета</b>' : ''}</span></div>`;
-      h += `<div class="row mu"><span>Подготовят за ночь: ${CAP_N[capGroup(p.k)]}</span><span class="${left < p.n ? 'bad' : ''}">ещё ${left}</span></div>`;
+      const cb = (E.capBonus || {})[capGroup(p.k)] || 0;
+      h += `<div class="row mu"><span>Подготовят за ночь: ${CAP_N[capGroup(p.k)]}${cb ? ` <span class="ac" title="Половина неиспользованного вчера лимита">(+${cb} впрок)</span>` : ''}</span><span class="${left < p.n ? 'bad' : ''}">ещё ${left}</span></div>`;
       h += '<div class="lbl">Средство</div>';
       for (const k of ATK_KINDS) {
         const n = Math.min(E.stock[k] || 0, Math.max(0, capLeft(k)));
@@ -177,6 +178,14 @@ const AttackUI = (() => {
       if (T.cls === 'drone' || T.cls === 'decoy') {
         h += `<div class="acts"><button class="btn sm ${p.high ? 'on' : ''}" data-a="high">${p.high ? 'Высота 2–3 км' : 'Бреющий'}</button></div>`;
       }
+      if (T.cls === 'cruise') {
+        h += `<div class="lbl">Профиль полёта</div><div class="acts">
+        <button class="btn sm ${!p.high ? 'on' : ''}" data-a="alt" data-v="0">Предельно низко</button>
+        <button class="btn sm ${p.high ? 'on' : ''}" data-a="alt" data-v="1">Высоко</button></div>
+        <div class="hint">${p.high
+          ? 'Высоко: на 20% быстрее и точнее, рельеф не страшен — но ракету с границы ведёт вся сеть РЛС края, сюрприза не будет.'
+          : 'Предельно низко: радары видят ракету поздно, только вблизи. Но на долгом маршруте она может задеть рельеф — в туман и снег чаще.'}</div>`;
+      }
       h += `<div class="hint">${esc(T.d)}</div>`;
       h += `<div class="acts">
       <button class="btn sm ${G.mode && G.mode.t === 'route' ? 'on' : ''}" data-a="route">Свой маршрут</button>
@@ -199,6 +208,9 @@ const AttackUI = (() => {
   <li>«Начать налёт» — 19:00. Ускорение сверху, пауза — пробел.</li>
   <li>Автомаршрут обходит только известные зоны. «Свой маршрут» — изломы кликами.</li>
   <li>«Мотыльки» жгут их ракеты. «Сова» и излучающие РЛС вскрывают позиции. «Молот» и «Грач» бьют по контактам.</li>
+  <li>КАБ «Плита» сбрасывают над передним краем, она планирует до 70 км — по технике у фронта. Если там работает их «Щит» или «Бастион», самолёт могут сбить.</li>
+  <li>Крылатые ракеты: «предельно низко» — скрытно, но иногда задевают рельеф; «высоко» — быстрее и точнее, но их видит вся сеть РЛС.</li>
+  <li>Неиспользованный ночной лимит наполовину переходит на следующую ночь: можно копить на большой удар.</li>
   <li>FPV «Оса» с переднего края выбивает посты наблюдения и мобильные группы, а камера вскрывает технику. Вглубь края FPV довозит «Улей»: сбрасывает рой за 20 км до цели и держит связь — собьют носитель, рой ослепнет.</li>
   <li>Попадание в жилой квартал даёт сопутствующие потери и режет очки. Цель кампании — энергосистема за ${NIGHTS_TOTAL} ночей.</li>
   </ul>
@@ -235,6 +247,7 @@ const AttackUI = (() => {
       else if (a === 'delay') { p.delay = +el.dataset.v; lastRC = ''; uiDirty(); }
       else if (a === 'zid') { p.zid = el.dataset.v; computePreview(); lastRC = ''; uiDirty(); }
       else if (a === 'high') { p.high = !p.high; lastRC = ''; uiDirty(); }
+      else if (a === 'alt') { p.high = el.dataset.v === '1'; lastRC = ''; uiDirty(); }
       else if (a === 'route') {
         if (G.mode && G.mode.t === 'route') { G.mode = null; hint('') }
         else { G.mode = { t: 'route' }; hint('Кликайте изломы. Объект или контакт — цель. ПКМ — выйти.') }

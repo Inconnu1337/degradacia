@@ -43,6 +43,7 @@ defineMode({
   onNavLost: atkEw,
   onLaunch: atkLaunchNote,
   onBrood: atkBrood,
+  onCrash: atkCrash,
 
   debrief: AttackFlow.endNight,
   finalScreen: AttackFlow.finalScreen,

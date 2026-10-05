@@ -43,6 +43,7 @@ defineMode({
   onNavLost: atk(atkEw),
   onLaunch: atk(atkLaunchNote),
   onBrood: atk(atkBrood),
+  onCrash: atk(atkCrash),
 
   checkStart(role, confirm) {
     return role === 'def' ? DefenseFlow.checkStart(confirm) : { ok: G.phase === 'prep' };

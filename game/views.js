@@ -27,7 +27,7 @@ function unitV(u) {
     crew: { cs: u.crew.cs, exp: u.crew.exp, fat: u.crew.fat, trait: u.crew.trait },
     kills: u.kills, rOn: u.rOn, pend: u.pend, fuel: u.fuel, rc: reloadCost(u),
     fire: u.fire || 0, fix: u.fix ? u.fix.st : null,
-    patrol: u.patrol ? { x: u.patrol.x, y: u.patrol.y, name: patrolName(u.patrol) } : null, chase: u.chase || null
+    patrol: u.patrol ? { x: u.patrol.x, y: u.patrol.y, name: patrolName(patrolCenter(u.patrol)), pts: u.patrol.pts ? u.patrol.pts.map(pt) : null, r: patrolR(u.patrol), leg: u.patrol.leg || 0 } : null, chase: u.chase || null
   };
 }
 
@@ -102,7 +102,7 @@ function viewFor(role) {
   if (role === 'def') {
     Object.assign(G2, {
       budget: G.budget, morale: G.morale, alarmT: G.alarmT, alarmTrust: G.alarmTrust, det: G.det || 0,
-      hq: G.hq, gifts: G.gifts, warnedUncovered: G.warnedUncovered || 0, crews: G.crews || CREWS_PER_NIGHT,
+      hq: G.hq, gifts: G.gifts, offers: G.offers || [], offerTaken: !!G.offerTaken, warnedUncovered: G.warnedUncovered || 0, crews: G.crews || CREWS_PER_NIGHT,
       spoilable: !MODE.humans.includes('atk'),
       units: G.units.map(unitV),
       threats: G.threats.filter(th => !th.dead && G.t - th.seen <= 200).map(threatDefV),
@@ -118,7 +118,7 @@ function viewFor(role) {
   });
   return {
     G: G2,
-    E: { stock: E.stock, know, heat: E.heat, groups: E.groups.map(groupV), used: E.used, zbook: E.zbook,
+    E: { stock: E.stock, know, heat: E.heat, groups: E.groups.map(groupV), used: E.used, capBonus: E.capBonus || {}, zbook: E.zbook,
       feints: E.feints || [], feintUsed: E.feintUsed || {} },
     S: { civ: S ? S.civ : 0 }
   };

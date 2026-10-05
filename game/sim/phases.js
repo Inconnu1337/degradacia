@@ -60,6 +60,7 @@ function startPrep(first) {
   G.phase = 'prep'; G.t = 0; G.speed = 0;
   G.threats = []; G.miss = []; G.comms = []; G.reqs = []; G.intelQ = []; G.ready = {}; G.fatQ = []; G.fatT = 0; G.wxTrans = null;
   G.alarm = false; G.alarmT = 0; G.falseRun = 0;
+  G.ammoDeal = 0; G.crewBonus = 0; G.offers = []; G.offerTaken = false;
   G.alarmTrust = Math.min(1, G.alarmTrust + .25);
 
   planWeather();

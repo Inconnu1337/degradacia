@@ -23,6 +23,8 @@ defineMode({
   input: {
     pickAt: DefenseInput.pickAt,
     mapClick: DefenseInput.mapClick,
-    tooltip: DefenseInput.tooltip
+    tooltip: DefenseInput.tooltip,
+    onContextMenu: DefenseInput.onContextMenu,
+    sendPatrol: DefenseInput.sendPatrol
   }
 });

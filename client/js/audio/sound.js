@@ -12,7 +12,10 @@
               высота тона чуть плывёт, когда цель проходит мимо
      эфир     щелчки тангенты, сигналы сводок
      фон      ночь: ветер, дождь, сверчки в тихую погоду, гул города,
-              дальние раскаты, редкие собаки; день — тишина штаба
+              дальние раскаты, редкие собаки, сова, далёкий поезд,
+              генераторы, когда энергосистема просела;
+              штаб (день и пауза): часы, телефон, машинка, голоса
+              за стеной, шипение дежурного приёмника
      музыка   медленный эмбиент на аккордах, ночью темнее,
               при целях на радарах — тихий пульс
    Всё идёт через компрессор, срез верхов и общий ревер — громкие
@@ -24,7 +27,7 @@ const Sound = (() => {
   let cfg = Object.assign({}, DEF);
   try { Object.assign(cfg, JSON.parse(localStorage.getItem('nr.sound') || '{}')) } catch (e) { /* без настроек */ }
 
-  let ac = null, out, comp, verb, bus = {}, noiseBuf = null, amb = null, mus = null;
+  let ac = null, out, comp, verb, bus = {}, noiseBuf = null, brownBuf = null, crushCurve = null, amb = null, mus = null;
   let lastBoom = 0, boomsNow = 0, lastRadio = 0, lastShot = 0, engT = 0;
   const voices = new Map();      /* id цели/ракеты/вертолёта → голос двигателя */
   const MAX_VOICES = 7;
@@ -49,6 +52,8 @@ const Sound = (() => {
     verb.connect(vg); vg.connect(comp);
     for (const k of ['sfx', 'eng', 'radio', 'amb', 'music']) { const g = ac.createGain(); g.gain.value = cfg[k]; g.connect(comp); bus[k] = g }
     noiseBuf = makeNoise(4);
+    brownBuf = makeBrown(4);
+    crushCurve = softClip(2.6);
     startAmbient();
     startMusic();
   }
@@ -64,6 +69,21 @@ const Sound = (() => {
     return b;
   }
 
+  /** бурый шум: почти весь в низах — основа раската и давления взрыва */
+  function makeBrown(sec) {
+    const b = ac.createBuffer(1, ac.sampleRate * sec, ac.sampleRate), d = b.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < d.length; i++) { last = (last + .02 * (Math.random() * 2 - 1)) / 1.02; d[i] = last * 3.5 }
+    return b;
+  }
+
+  /** мягкое ограничение: перегруженный, «рваный» низ, как у настоящего близкого разрыва */
+  function softClip(k) {
+    const n = 1024, c = new Float32Array(n);
+    for (let i = 0; i < n; i++) { const x = i / (n - 1) * 2 - 1; c[i] = Math.tanh(k * x) / Math.tanh(k) }
+    return c;
+  }
+
   function impulse(sec, decay) {
     const len = ac.sampleRate * sec, b = ac.createBuffer(2, len, ac.sampleRate);
     for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay) }
@@ -71,13 +91,13 @@ const Sound = (() => {
   }
 
   /* ---------- примитивы ---------- */
-  function noiseSrc() { const s = ac.createBufferSource(); s.buffer = noiseBuf; s.loop = true; return s }
+  function noiseSrc(buf) { const s = ac.createBufferSource(); s.buffer = buf || noiseBuf; s.loop = true; return s }
 
   function filt(type, f, q) { const x = ac.createBiquadFilter(); x.type = type; x.frequency.value = f; x.Q.value = q || .7; return x }
 
-  /** одноразовый шум с огибающей и движением фильтра */
+  /** одноразовый шум с огибающей и движением фильтра (o.brown — бурый шум) */
   function noise(dest, t, dur, o) {
-    const s = noiseSrc(); s.playbackRate.value = o.rate || 1;
+    const s = noiseSrc(o.brown ? brownBuf : null); s.playbackRate.value = o.rate || 1;
     const f = filt(o.type || 'lowpass', o.f0, o.q);
     if (o.f1) f.frequency.exponentialRampToValueAtTime(o.f1, t + dur);
     const g = ac.createGain();
@@ -129,29 +149,66 @@ const Sound = (() => {
   }
 
   /* ---------- бой: разовые события ---------- */
+  /**
+   * разрыв на земле. Слои, как у настоящего взрыва:
+   *   щелчок — ударная волна, резкий широкополосный фронт (только вблизи);
+   *   удар    — плотный бурый шум с перегрузом, давит грудь, без «пиу»-тона;
+   *   раскат  — несколько отражений от рельефа и застройки с задержками,
+   *             каждое глуше предыдущего: «рокочет» и катится;
+   *   осыпь   — щелчки обломков и стёкол через полсекунды-секунду.
+   * Вдали остаются только приглушённый удар и раскат, с задержкой звука.
+   * o.w — мощность боевой части: FPV хлопает, КАБ и баллистика грохочут.
+   */
   function boom(o, small) {
     const now = ac.currentTime;
     if (now - lastBoom < .12) { if (++boomsNow > 3) return } else boomsNow = 0;
     lastBoom = now;
-    const { g, s } = placed(o, 'sfx', .8);
-    const t = now + (1 - s.near) * .35 + Math.random() * .04;     /* далёкий разрыв доходит позже */
-    const k = small ? .45 : 1;
-    if (s.near > .25) {
-      /* близко: плотный удар, давление, осыпь обломков */
-      tone(g, t, .9 * k + .3, { f0: 68 + Math.random() * 14, f1: 30, vol: .6 * k, att: .003 });
-      noise(g, t, 1.4 * k + .3, { f0: 2400, f1: 90, vol: .45 * k, att: .004 });
-      noise(g, t + .25, 1.8 * k, { type: 'bandpass', f0: 1800, f1: 500, q: .6, vol: .05 * k, att: .3 });
+    const { g, s } = placed(o, 'sfx', .9);
+    const pw = clamp(o.w ? Math.sqrt(o.w / 30) : small ? .5 : 1, .35, 1.4);
+    const k = small ? pw * .55 : pw;
+    const t = now + (1 - s.near) * .45 + Math.random() * .04;     /* далёкий разрыв доходит позже */
+    /* перегруз — общий для удара */
+    const sh = ac.createWaveShaper(); sh.curve = crushCurve; sh.oversample = '2x';
+    const shG = ac.createGain(); shG.gain.value = .7;
+    sh.connect(shG); shG.connect(g);
+    if (s.near > .3) {
+      /* щелчок фронта */
+      noise(g, t, .05, { type: 'highpass', f0: 900, vol: .5 * k, att: .0008 });
+      noise(g, t + .004, .16, { type: 'bandpass', f0: 2600, f1: 700, q: .7, vol: .22 * k, att: .001 });
     }
-    /* хвост: раскат, который слышно и далеко */
-    noise(g, t, 3.2 * k + .6, { f0: 260, f1: 45, vol: .35 * k, att: .05 });
-    tone(g, t, 2.2 * k, { f0: 46, f1: 28, vol: .22 * k, att: .06 });
+    /* удар: бурый шум через низкочастотный фильтр, быстрый подъём, перегруз */
+    noise(sh, t, .7 * k + .35, { brown: 1, f0: 180 + s.near * 260, f1: 55, vol: 1.1 * k, att: .002, hold: .03 });
+    noise(sh, t + .01, .35 * k + .2, { f0: 900 * s.near + 200, f1: 120, vol: .35 * k * s.near, att: .002 });
+    /* раскат: 3–5 отражений, разнесённых во времени */
+    const n = 3 + (Math.random() * 3 | 0);
+    let d = .12 + Math.random() * .1;
+    for (let i = 0; i < n; i++) {
+      const v = (.42 - i * .07) * k * (.6 + Math.random() * .5);
+      noise(g, t + d, 1.4 + i * .5 + k, { brown: 1, f0: 140 - i * 15, f1: 35, vol: Math.max(.04, v), att: .06 + i * .03 });
+      d += .18 + Math.random() * .45;
+    }
+    /* длинный хвост — слышен и издалека */
+    noise(g, t + .1, 3.5 * k + 1.5, { brown: 1, f0: 90, f1: 30, vol: .3 * k, att: .25 });
+    /* осыпь обломков вблизи */
+    if (s.near > .45) {
+      const m = 4 + (Math.random() * 8 | 0);
+      for (let i = 0; i < m; i++) {
+        noise(g, t + .45 + Math.random() * 1.6, .03 + Math.random() * .05, { type: 'bandpass', f0: 1200 + Math.random() * 3000, q: 2, vol: .02 + Math.random() * .03 * k, att: .001 });
+      }
+    }
   }
 
+  /**
+   * подрыв зенитной ракеты в воздухе: резкий хлопок осколочной части
+   * (выше и суше наземного), короткий удар и эхо по небу без раската земли
+   */
   function airBurst(o, small) {
-    const { g } = placed(o, 'sfx', 1);
-    const t = ac.currentTime, k = small ? .5 : 1;
-    tone(g, t, .5, { f0: 150, f1: 60, vol: .26 * k, att: .002 });
-    noise(g, t, 1.6, { f0: 3000, f1: 140, vol: .22 * k, att: .002 });
+    const { g, s } = placed(o, 'sfx', 1.1);
+    const t = ac.currentTime + (1 - s.near) * .3, k = small ? .5 : 1;
+    if (s.near > .3) noise(g, t, .04, { type: 'highpass', f0: 1500, vol: .35 * k, att: .0008 });
+    noise(g, t, .5 * k + .2, { brown: 1, f0: 420, f1: 90, vol: .5 * k, att: .002 });
+    noise(g, t + .005, .25, { type: 'bandpass', f0: 1800, f1: 500, q: .8, vol: .16 * k, att: .001 });
+    noise(g, t + .25 + Math.random() * .2, 1.8 * k + .6, { brown: 1, f0: 160, f1: 45, vol: .16 * k, att: .15 });
   }
 
   function gun(o) {
@@ -198,7 +255,7 @@ const Sound = (() => {
   */
   function kindOf(th) {
     const c = th.cls;
-    if (c === 'ballistic' || c === 'aeroball') return 'fall';
+    if (c === 'ballistic' || c === 'aeroball' || c === 'kab') return 'fall';
     if (c === 'jet' || c === 'cruise' || c === 'arm') return 'jet';
     if (c === 'fpv') return 'fpv';
     return 'piston';
@@ -352,8 +409,92 @@ const Sound = (() => {
       wind: bed('lowpass', 380, .8), wind2: bed('bandpass', 900, 3),
       rain: bed('bandpass', 2600, .4), drops: bed('highpass', 5000, .3),
       hum: bed('lowpass', 90, .9), room: bed('lowpass', 220, .5),
-      next: { cricket: 0, dog: 0, rumble: 0, siren: 0 }
+      stat: bed('bandpass', 1900, 1.4),
+      gen: genBed(),
+      next: { cricket: 0, dog: 0, rumble: 0, siren: 0, tick: 0, phone: 0, type: 0, talk: 0, owl: 0, train: 0, squelch: 0 },
+      tock: 0
     };
+  }
+
+  /** дизель-генераторы: низкий гул с гармоникой, громче, чем хуже энергосистема */
+  function genBed() {
+    const g = ac.createGain(), lp = filt('lowpass', 260, .7);
+    g.gain.value = 0;
+    for (const [f, v] of [[49, 1], [98, .5], [147, .2]]) {
+      const o = ac.createOscillator(), k = ac.createGain();
+      o.type = 'sawtooth'; o.frequency.value = f * (1 + Math.random() * .01); k.gain.value = v;
+      o.connect(k); k.connect(lp); o.start();
+    }
+    lp.connect(g); g.connect(bus.amb);
+    return { g };
+  }
+
+  /* ---------- штаб: то, что слышно в комнате ---------- */
+  /** часы на стене: «тик» и «так» через раз */
+  function clockTick(t) {
+    amb.tock ^= 1;
+    noise(bus.amb, t, .03, { type: 'bandpass', f0: amb.tock ? 2300 : 3100, q: 6, vol: .05, att: .001 });
+  }
+
+  /** старый телефон: два звонка с переливом молоточка */
+  function phone(t) {
+    const lp = filt('lowpass', 2600, .6), g = ac.createGain(), w = ac.createGain();
+    g.gain.value = .5; w.gain.value = .9;
+    lp.connect(g); g.connect(bus.amb); g.connect(w); w.connect(verb);
+    const rings = 1 + (Math.random() * 2 | 0);
+    for (let r = 0; r < rings; r++) {
+      const s0 = t + r * 3;
+      for (let i = 0; i < 24; i++) tone(lp, s0 + i * .045, .04, { f0: i % 2 ? 1180 : 1260, vol: .012, att: .002, wave: 'triangle' });
+    }
+  }
+
+  /** печатная машинка за соседним столом: неровная очередь щелчков и звонок каретки */
+  function typing(t) {
+    let s0 = t;
+    const n = 6 + (Math.random() * 14 | 0);
+    for (let i = 0; i < n; i++) {
+      s0 += .07 + Math.random() * .16;
+      noise(bus.amb, s0, .025, { type: 'bandpass', f0: 1600 + Math.random() * 900, q: 3, vol: .035, att: .001 });
+    }
+    if (Math.random() < .35) tone(bus.amb, s0 + .25, .5, { f0: 2650, vol: .006, att: .002 });
+  }
+
+  /** голоса за стеной: шум через две «форманты», слоги 3–5 в секунду */
+  function talk(t) {
+    const dur = 1.6 + Math.random() * 2.4;
+    const lp = filt('lowpass', 1100, .6), g = ac.createGain();
+    g.gain.value = 1; lp.connect(g); g.connect(bus.amb);
+    for (const [f, q] of [[480 + Math.random() * 120, 4], [1250 + Math.random() * 300, 5]]) {
+      let s0 = t;
+      while (s0 < t + dur) {
+        const syl = .12 + Math.random() * .16;
+        noise(lp, s0, syl, { type: 'bandpass', f0: f * (.9 + Math.random() * .25), q, vol: .02 + Math.random() * .02, att: .03 });
+        s0 += syl + Math.random() * .08;
+      }
+    }
+  }
+
+  /** щелчок шумоподавителя дежурного приёмника */
+  function squelch(t) {
+    noise(bus.amb, t, .18 + Math.random() * .25, { type: 'bandpass', f0: 2200, q: 1.2, vol: .02, att: .003 });
+  }
+
+  /* ---------- ночь: редкие звуки края ---------- */
+  /** сова: два глухих уханья через ревер */
+  function owl(t) {
+    const g = ac.createGain(), w = ac.createGain(); g.gain.value = .6; w.gain.value = 1.4;
+    g.connect(bus.amb); g.connect(w); w.connect(verb);
+    tone(g, t, .3, { f0: 390, f1: 360, vol: .02, att: .05 });
+    tone(g, t + .55, .55, { f0: 380, f1: 330, vol: .022, att: .06 });
+  }
+
+  /** далёкий тепловоз: аккорд гудка, долгий хвост ревера */
+  function train(t) {
+    const lp = filt('lowpass', 650, .5), g = ac.createGain(), w = ac.createGain();
+    g.gain.value = .5; w.gain.value = 2;
+    lp.connect(g); g.connect(bus.amb); g.connect(w); w.connect(verb);
+    const d = 1.6 + Math.random();
+    for (const f of [311, 370, 466]) tone(lp, t, d, { f0: f, vol: .012, att: .25, wave: 'sawtooth' });
   }
 
   /** сверчок: несколько быстрых высоких щелчков */
@@ -588,13 +729,26 @@ const Sound = (() => {
     amb.rain.g.gain.setTargetAtTime((.07 * rainK + .012 * snowK) * live, t, .4);
     amb.drops.g.gain.setTargetAtTime(.02 * rainK * live, t, .4);
     amb.hum.g.gain.setTargetAtTime(live ? .045 + busy * .05 : 0, t, .6);
-    /* днём — тихий «воздух» штаба */
-    amb.room.g.gain.setTargetAtTime(night ? .006 : .02, t, 3);
+    /* днём и на паузе — тихий «воздух» штаба и шипение дежурного приёмника */
+    const room = !live;
+    amb.room.g.gain.setTargetAtTime(room ? .02 : .006, t, 3);
+    amb.stat.g.gain.setTargetAtTime(room ? .005 : night ? .002 : 0, t, 2);
+    /* генераторы: энергосистема ниже 60% — край на дизелях */
+    const en = G.objs && G.objs.length ? energy() : 100;
+    amb.gen.g.gain.setTargetAtTime(live && en < 60 ? .008 + .02 * (1 - en / 60) : 0, t, 3);
     /* редкие события фона */
     const N = amb.next, calm = vis === 'clear' || vis === 'cloud';
     if (live && calm && wind < 9 && !busy && t > N.cricket) { cricket(); N.cricket = t + 1.5 + Math.random() * 4 }
     if (live && t > N.dog) { if (N.dog) dog(); N.dog = t + 40 + Math.random() * 80 }
     if (live && busy && t > N.rumble) { if (N.rumble) rumble(); N.rumble = t + 18 + Math.random() * 30 }
+    if (live && calm && !busy && t > N.owl) { if (N.owl) owl(t); N.owl = t + 50 + Math.random() * 110 }
+    if (live && t > N.train) { if (N.train) train(t); N.train = t + 140 + Math.random() * 200 }
+    /* штаб */
+    if (room && t > N.tick) { clockTick(t); N.tick = t + 1 }
+    if (room && t > N.phone) { if (N.phone) phone(t); N.phone = t + 45 + Math.random() * 100 }
+    if (room && t > N.type) { if (N.type) typing(t); N.type = t + 9 + Math.random() * 25 }
+    if (room && t > N.talk) { if (N.talk) talk(t); N.talk = t + 14 + Math.random() * 30 }
+    if (t > N.squelch) { if (N.squelch && (room || night)) squelch(t); N.squelch = t + 20 + Math.random() * 40 }
     dramaturgy(t);
     /* двигатели — 10 раз в секунду */
     if (t - engT > .1) { engT = t; if (ready()) engines() }

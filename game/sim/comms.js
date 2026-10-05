@@ -278,14 +278,14 @@ function receive(u, o) {
     case 'patrol': {
       if (!T.air) return;
       if (!G.weather.heli) { say(u, `Погода нелётная (${G.weather.n.toLowerCase()}). Взлёт невозможен.`, 'w'); return }
-      if (side(o.p.x, o.p.y) !== 1) { say(u, 'Район патрулирования не на нашей территории, уточните.', 'w'); return }
+      if ((o.pts || [o.p]).some(q => side(q.x, q.y) !== 1)) { say(u, 'Район патрулирования не на нашей территории, уточните.', 'w'); return }
       if (u.fuel < 900 && !sk.x) {
         ask(u, `Топлива на ${fmtDur(u.fuel)}. До района ещё лететь. Идти или сначала дозаправка?`,
           [{ l: 'Идти', f: () => receive(u, { ...o, sk: { x: 1 } }) },
           { l: 'На дозаправку', f: () => receive(u, { t: 'rtb' }) }], 1, 'fuel');
         return;
       }
-      u.patrol = { x: o.p.x, y: o.p.y, obj: o.obj || null, uid: o.uid || null, keep: true };
+      u.patrol = newPatrol(o);
       u.base = forwardBase(u, u.patrol);
       u.st = 'air'; u.dest = null; u.rtb = 0; u.chase = null;
       say(u, `Взлетаем, сектор: ${patrolName(u.patrol)}. Работаем сами: ищем и бьём мелочь, на заправку и обратно. В воздухе ${fmtDur(u.fuel)}.`);
@@ -325,6 +325,7 @@ function reloadCost(u) {
   if (!T.w) return 0;
   let c = (T.w.mc ? (T.w.am - u.am) * T.w.mc : (T.rl.c || 0)) * RELOAD_MUL;
   if (nearSupport(u, 'reload')) c *= .75;
+  if (G.ammoDeal) c *= .5;   /* эшелон ракет от партнёров */
   return c;
 }
 
@@ -351,7 +352,8 @@ function prepExec(u, o) {
     if (T.air) { u.base = { x: o.p.x, y: o.p.y }; u.home = { ...u.base } }
   }
   else if (o.t === 'patrol' && T.air) {
-    u.patrol = { x: o.p.x, y: o.p.y, obj: o.obj || null, uid: o.uid || null, keep: true };
+    if ((o.pts || [o.p]).some(q => side(q.x, q.y) !== 1)) { toast('Зона патруля не на нашей территории', 'i'); return }
+    u.patrol = newPatrol(o);
     u.base = forwardBase(u, u.patrol);
     hq(`«${esc(u.crew.cs)}»: задача на ночь — патруль, сектор ${patrolName(u.patrol)}. Взлёт с началом дежурства.`, 'g');
   }

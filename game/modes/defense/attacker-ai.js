@@ -97,6 +97,17 @@ const DefenseAI = (() => {
       eGroup('fpv', 4, z, { aim }, { launch: t0 + R(.5, 8) * 3600, style: 'direct', op: 'охота' });
     }
     if (packs > 0) mind(`Передний край: ${packs} ${packs > 1 ? 'пакета' : 'пакет'} FPV на свободную охоту — выбить посты наблюдения и мобильные группы у линии фронта.`);
+    /* КАБ — по вскрытой технике в досягаемости от линии фронта */
+    if ((st.plita || 0) >= 2) {
+      const R0 = TT.plita.range - 5;
+      const near = Object.values(E.know).filter(k => k.conf >= .4 && UT[k.type] && fronts.some(z => dist(z, k) < R0))
+        .sort((a, b) => UT[b.type].cost * b.conf - UT[a.type].cost * a.conf).slice(0, 2);
+      for (const k of near) {
+        const z = fronts.slice().sort((a, b) => dist(a, k) - dist(b, k))[0];
+        eGroup('plita', Math.min(st.plita, RI(2, 4)), z, { aim: { x: k.x, y: k.y, uid: k.uid } }, { launch: t0 + R(1, 9) * 3600, style: 'direct', op: 'КАБ' });
+        mind(`Фронтовая авиация: КАБ по ${UT[k.type].n} у переднего края (${pc(k.conf)}). Сброс с 10 км — их ЗРК там нет, самолёт не рискует.`);
+      }
+    }
     if (!(st.ulei > 0)) return;
     const sam = kn.find(k => k.conf >= .45);
     const nU = Math.min(st.ulei, posture === 'sead' ? 3 : posture === 'massive' ? 2 : chance(.5) ? 1 : 0);
@@ -126,7 +137,7 @@ const DefenseAI = (() => {
     let posture;
     if (n === 1) posture = 'probe';
     else if (knHot.length >= 2 && st.molot >= 4 && n >= 3 && chance(.45)) posture = 'sead';
-    else if ((heavy >= 20 && n - E.lastMassive >= 2) || (n === 5 && heavy >= 10) || (deplet >= 10 && heavy >= 14)) posture = 'massive';
+    else if ((heavy >= 20 && n >= 3 && n - E.lastMassive >= 2) || (n === 5 && heavy >= 10) || (deplet >= 10 && heavy >= 14 && n >= 3)) posture = 'massive';
     else posture = 'harass';
 
     E.focus = n === 1 ? 'energy'

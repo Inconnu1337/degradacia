@@ -12,12 +12,12 @@ const AIR_COL = {
   drone: '#ff9d3d', decoy: '#ffbe6b', loiter: '#ff8f5a', jet: '#ff6f2f',
   recon: '#ffe08a', ewuav: '#c58cff', arm: '#ff5f9e',
   cruise: '#ff4d4d', ballistic: '#e04dff', aeroball: '#f06bff',
-  fpv: '#ffd23d', mother: '#ffb347',
+  fpv: '#ffd23d', mother: '#ffb347', kab: '#ff7a7a',
   unknown: '#a9bac6'
 };
 
 /* относительный размер значка: FPV — мелочь, носитель и разведчики — крупные */
-const AIR_SIZE = { fpv: .7, mother: 1.3, recon: 1.1, ewuav: 1.15 };
+const AIR_SIZE = { fpv: .7, mother: 1.3, recon: 1.1, ewuav: 1.15, kab: .9 };
 
 /* ---------- цвет: светлее / темнее ---------- */
 function tint(hex, k) {
@@ -77,6 +77,14 @@ function plume(g, x, w, len, t, th, hot) {
   /* ядро */
   g.fillStyle = 'rgba(255,255,255,.75)';
   g.beginPath(); g.ellipse(x - w * .6, 0, w * 1.1, w * .45, 0, 0, 7); g.fill();
+}
+
+/* раскалённый нос: торможение об воздух на большой скорости */
+function heatNose(g, x, r, t, th, rgb) {
+  const pl = .65 + .35 * Math.sin(t * 11 + phase(th));
+  const gr = g.createRadialGradient(x, 0, 0, x, 0, r);
+  gr.addColorStop(0, `rgba(${rgb},${.7 * pl})`); gr.addColorStop(1, `rgba(${rgb},0)`);
+  g.fillStyle = gr; g.beginPath(); g.arc(x, 0, r, 0, 7); g.fill();
 }
 
 /* мигающий огонёк */
@@ -197,17 +205,17 @@ const ART_AIR = {
     fs(g, [[-.12, -.03], [-.3, -.035], [-.3, .035], [-.12, .03]], tint(col, -.55));
     dot(g, .46, 0, .02, tint(col, .5));
   },
-  /* баллистическая: длинный корпус, стабилизаторы, яркий факел */
+  /* баллистическая: длинный корпус, стабилизаторы. Двигатель давно отработал —
+     на нисходящей ветви она падает без факела, только нос раскаляется */
   ballistic(g, col, t, th) {
-    plume(g, -.38, .07, .62, t, th, true);
+    heatNose(g, .5, .16, t, th, '255,200,150');
     for (const s of [-1, 1]) fs(g, [[-.24, s * .06], [-.38, s * .22], [-.42, s * .22], [-.38, s * .06]], tint(col, .35), 'rgba(0,0,0,.45)', .014);
     fs(g, [[.5, 0], [.4, -.04], [.26, -.065], [-.38, -.07], [-.4, 0], [-.38, .07], [.26, .065], [.4, .04]], bodyGrad(g, col, .07), 'rgba(0,0,0,.6)', .02);
     g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = .014;
     g.beginPath(); g.moveTo(.26, -.065); g.lineTo(.26, .065); g.moveTo(-.05, -.068); g.lineTo(-.05, .068); g.stroke();
   },
-  /* аэробаллистическая: оживальный корпус и плазма на носу */
+  /* аэробаллистическая: оживальный корпус и плазма на носу, без факела */
   aeroball(g, col, t, th) {
-    plume(g, -.38, .065, .5, t, th, true);
     for (const s of [-1, 1]) fs(g, [[-.26, s * .06], [-.36, s * .19], [-.42, s * .19], [-.4, s * .06]], tint(col, .3), 'rgba(0,0,0,.45)', .014);
     fs(g, [[.5, 0], [.36, -.05], [.16, -.07], [-.4, -.07], [-.42, 0], [-.4, .07], [.16, .07], [.36, .05]], bodyGrad(g, col, .07), 'rgba(0,0,0,.6)', .02);
     const pl = .6 + .4 * Math.sin(t * 13 + phase(th));
@@ -256,6 +264,21 @@ const ART_AIR = {
     dot(g, .1, 0, .03, '#e8eef2');
     pusher(g, -.2, .14, t, th);
     blink(g, .25, -.62, .018, 'rgba(255,60,60,.9)', t, th, 1.4);
+  },
+  /* КАБ: толстый корпус бомбы, раскрытое планирующее крыло, крестовой хвост; без факела — только свист */
+  kab(g, col, t, th) {
+    /* спутный след от крыла */
+    g.strokeStyle = 'rgba(255,255,255,.12)'; g.lineWidth = .02;
+    for (const s of [-1, 1]) { g.beginPath(); g.moveTo(-.02, s * .46); g.lineTo(-.6, s * .5); g.stroke() }
+    /* крыло модуля — тонкая прямая плоскость поперёк корпуса */
+    fs(g, [[.04, -.46], [-.04, -.46], [-.06, .46], [.02, .46]], tint(col, -.35), 'rgba(0,0,0,.55)', .014);
+    for (const s of [-1, 1]) fs(g, [[-.28, s * .08], [-.4, s * .2], [-.46, s * .2], [-.42, s * .08]], tint(col, -.25), 'rgba(0,0,0,.5)', .012);
+    fs(g, [[.5, 0], [.42, -.09], [.2, -.12], [-.3, -.11], [-.44, -.06], [-.44, .06], [-.3, .11], [.2, .12], [.42, .09]], bodyGrad(g, col, .12), 'rgba(0,0,0,.6)', .02);
+    /* хомуты модуля и взрыватель */
+    g.strokeStyle = 'rgba(0,0,0,.4)'; g.lineWidth = .018;
+    g.beginPath(); g.moveTo(.12, -.12); g.lineTo(.12, .12); g.moveTo(-.16, -.115); g.lineTo(-.16, .115); g.stroke();
+    dot(g, .48, 0, .025, '#d8d8d8');
+    blink(g, -.44, 0, .015, 'rgba(120,255,140,.8)', t, th, .9);
   },
   /* неопознанный контакт */
   unknown(g, col, t) {

@@ -65,7 +65,13 @@ const DEFENSE_COMMANDS = {
         if (!T.air) return fail('патрулируют только вертолёты');
         const obj = o.obj != null ? objById(String(o.obj)) : null;
         const v = o.uid != null ? unitById(+o.uid) : null;
-        const p = obj ? { x: obj.x, y: obj.y } : v ? { x: v.x, y: v.y } : netPoint(o.p);
+        /* или маршрут из 2–4 зон: вертолёт облетает их по кругу и бьёт всё, что в зонах */
+        const pts = Array.isArray(o.pts) ? o.pts.slice(0, PATROL_MAX).map(netPoint).filter(Boolean) : [];
+        if (pts.length >= 2) {
+          order(u, { t: 'patrol', p: pts[0], pts });
+          return ok();
+        }
+        const p = obj ? { x: obj.x, y: obj.y } : v ? { x: v.x, y: v.y } : pts[0] || netPoint(o.p);
         if (!p) return fail('неверная точка');
         order(u, { t: 'patrol', p, obj: obj ? obj.id : null, uid: v && v !== u ? v.id : null });
         return ok();
@@ -104,6 +110,9 @@ const DEFENSE_COMMANDS = {
     }
     return fail('неизвестный приказ');
   },
+
+  /** выбрать одно из дневных предложений партнёров */
+  offer({ i }) { return DefensePrep.takeOffer(+i) },
 
   alarm() {
     if (!MODE.playerAlarm) return fail('тревогу объявляет не игрок');

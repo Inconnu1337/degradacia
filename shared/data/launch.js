@@ -13,7 +13,8 @@
    lead      от приказа до первого пуска: связь, подготовка, выход
              носителей. Днём (план на ночь) — короче: готовятся заранее.
    nightCap  сколько средств расчёты успевают подготовить за ночь;
-             неизрасходованное остаётся в арсенале.
+             неизрасходованное остаётся в арсенале, а половина
+             неиспользованного лимита переходит на следующую ночь (E.capBonus).
 
    Правила действуют на пакеты игрока (команда launch). ИИ-налётчик
    режима «Оборона» сам дозирует удары и под них не подпадает.
@@ -22,22 +23,22 @@
 const LAUNCH = {
   lanes: { tarsk: 2, belsk: 2, sarma: 1, sea: 4, bomb: 6, mig: 2, frn: 3, frc: 3, frs: 3 },
   balLanes: { tarsk: 1, belsk: 1, sarma: 1 },
-  cycle: { fpv: 150, mother: 420, drone: 300, decoy: 240, loiter: 360, jet: 600, arm: 600, recon: 900, ewuav: 900, cruise: 900, ballistic: 2400, aeroball: 2400 },
+  cycle: { fpv: 150, mother: 420, kab: 360, drone: 300, decoy: 240, loiter: 360, jet: 600, arm: 600, recon: 900, ewuav: 900, cruise: 900, ballistic: 2400, aeroball: 2400 },
   lead: {
-    night: { fpv: 600, mother: 900, drone: 900, decoy: 900, loiter: 900, jet: 1200, arm: 1200, recon: 900, ewuav: 1200, cruise: 10800, ballistic: 1800, aeroball: 3600 },
-    day: { fpv: 240, mother: 240, drone: 240, decoy: 240, loiter: 240, jet: 300, arm: 300, recon: 240, ewuav: 300, cruise: 2700, ballistic: 600, aeroball: 1800 }
+    night: { fpv: 600, mother: 900, kab: 1500, drone: 900, decoy: 900, loiter: 900, jet: 1200, arm: 1200, recon: 900, ewuav: 1200, cruise: 10800, ballistic: 1800, aeroball: 3600 },
+    day: { fpv: 240, mother: 240, kab: 300, drone: 240, decoy: 240, loiter: 240, jet: 300, arm: 300, recon: 240, ewuav: 300, cruise: 2700, ballistic: 600, aeroball: 1800 }
   },
-  nightCap: { fpv: 24, ulei: 4, drones: 50, strizh: 4, grach: 4, sova: 3, vual: 1, krechet: 6, albatros: 8, molot: 3, garpia: 1 }
+  nightCap: { fpv: 24, ulei: 4, plita: 12, drones: 50, strizh: 4, grach: 4, sova: 3, vual: 1, krechet: 6, albatros: 8, molot: 3, garpia: 1 }
 };
 
 /** подписи групп лимита */
-const CAP_N = { fpv: 'FPV «Оса»', ulei: '«Улей»', drones: 'дроны и имитаторы', strizh: '«Стриж»', grach: '«Грач-Э»', sova: '«Сова»', vual: '«Вуаль»', krechet: '«Кречет-М»', albatros: '«Альбатрос»', molot: '«Молот»', garpia: '«Гарпия»' };
+const CAP_N = { fpv: 'FPV «Оса»', ulei: '«Улей»', plita: 'КАБ «Плита»', drones: 'дроны и имитаторы', strizh: '«Стриж»', grach: '«Грач-Э»', sova: '«Сова»', vual: '«Вуаль»', krechet: '«Кречет-М»', albatros: '«Альбатрос»', molot: '«Молот»', garpia: '«Гарпия»' };
 
 /** к какой группе ночного лимита относится средство */
 const capGroup = k => (k === 'jalo' || k === 'moth' || k === 'shershen') ? 'drones' : k;
 
 /** сколько ещё можно подготовить за эту ночь */
-const capLeft = k => LAUNCH.nightCap[capGroup(k)] - ((E.used || {})[capGroup(k)] || 0);
+const capLeft = k => LAUNCH.nightCap[capGroup(k)] + ((E.capBonus || {})[capGroup(k)] || 0) - ((E.used || {})[capGroup(k)] || 0);
 
 /** очередь пусковых района: ключ (у баллистики свои пусковые) */
 const laneKey = (k, zid) => zid + (TT[k].cls === 'ballistic' ? ':bal' : '');

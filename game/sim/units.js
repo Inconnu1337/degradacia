@@ -84,6 +84,20 @@ function sense(dt) {
       if (!u.seenT.has(th.id)) { u.seenT.set(th.id, t); u.repQ.push(th) }
     }
   }
+  /* высотная крылатая ракета над краем: её ведёт вся сеть РЛС страны, без наших радаров */
+  for (const th of G.threats) {
+    if (th.dead || !th.hiAlt || th.x > WW + 20) continue;
+    th.vis = true; th.idLv = Math.max(th.idLv, 1);
+    if (th.first == null) th.first = t;
+    th.seen = t; th.lx = th.x; th.ly = th.y;
+    if (!th.netRep && MODE.humans.includes('def')) {
+      th.netRep = 1;
+      if (t - (G.hiRepT || -1e9) > 60) {
+        G.hiRepT = t;
+        asSide('def', () => hq(`Сеть РЛС: высотная крылатая ракета, кв. ${sq(th)}, курс ${DIRS_ON[dirIdx(th.hx, th.hy)]}. Ведём от границы.`, 'w'));
+      }
+    }
+  }
 }
 
 /* ---------- боевая работа ---------- */
@@ -98,7 +112,12 @@ function pkEff(u, th) {
   /* повреждённый комплекс работает хуже */
   const T = UT[u.k];
   if (u.hp < T.hp) p *= .55 + .45 * u.hp / T.hp;
-  if (W.kind === 'gun') { p *= G.weather.gun; if (th.alt === 'high') p *= .4; if (th.alt === 'mid') p *= .7 }
+  if (W.kind === 'gun') {
+    p *= G.weather.gun; if (th.alt === 'high') p *= .4; if (th.alt === 'mid') p *= .7;
+    /* ствол достаёт далеко, но точно бьёт только вблизи: до 40% дальности — полная вероятность, к пределу — треть */
+    const fr = dist(u, th) / W.r;
+    if (fr > .4) p *= 1 - .65 * Math.min(1, (fr - .4) / .6);
+  }
   return clamp(p, 0, .97);
 }
 
@@ -261,7 +280,7 @@ function killThreat(th, u) {
 function debris(th, u) {
   const c = inCity(th);
   if (!c) return;
-  const p = { drone: .25, decoy: .1, loiter: .2, mother: .2, fpv: .02, jet: .3, recon: .1, ewuav: .1, arm: .25, cruise: .35, ballistic: .45, aeroball: .45 }[th.cls];
+  const p = { drone: .25, decoy: .1, loiter: .2, mother: .2, fpv: .02, kab: .3, jet: .3, recon: .1, ewuav: .1, arm: .25, cruise: .35, ballistic: .45, aeroball: .45 }[th.cls];
   if (!chance(p)) return;
   const n = Math.max(0, Math.round(RI(0, 4) * alarmMul()));
   civLoss(n);
@@ -453,9 +472,9 @@ function ewStep(dt) {
       if (dist(u, th) > T.ewr) continue;
       if (chance(.0016 * TTh.gps * (1 - E.adapt.ewRes) * dt)) {
         /* крылатая ракета не теряется: уходит на инерциальную навигацию и мажет сильнее */
-        if (th.cls === 'cruise') {
+        if (th.cls === 'cruise' || th.cls === 'kab') {
           th.degraded = true;
-          sayT(u, 'ewcr', 60, `${thLabel(th)}: сбили спутниковую поправку, промах будет больше. Курс не потеряла.`, 'm');
+          sayT(u, 'ewcr', 60, `${thLabel(th)}: сбили спутниковую поправку, промах будет больше. ${th.cls === 'kab' ? 'Бомба планирует дальше.' : 'Курс не потеряла.'}`, 'm');
           continue;
         }
         th.lost = true;
@@ -475,6 +494,22 @@ function ewStep(dt) {
    PATROL_R от центра по данным всей сети, догоняет и бьёт пулемётом,
    потом возвращается на круг. Топливо — сам на заправку и обратно. */
 const PATROL_R = 24;
+/** маршрут патруля: до PATROL_MAX зон радиусом PATROL_RZ, облёт по кругу */
+const PATROL_RZ = 12;
+
+function newPatrol(o) {
+  const pts = o.pts && o.pts.length >= 2 ? o.pts.map(q => ({ x: q.x, y: q.y })) : null;
+  return { x: o.p.x, y: o.p.y, obj: pts ? null : o.obj || null, uid: pts ? null : o.uid || null, pts, leg: 0, keep: true };
+}
+
+/** насколько точка вне сектора: расстояние до ближайшей зоны и радиус зоны */
+function patrolDist(p, pt) {
+  if (!pt.pts) return dist(p, patrolCenter(pt));
+  let d = 1e9;
+  for (const q of pt.pts) d = Math.min(d, dist(p, q));
+  return d;
+}
+const patrolR = pt => pt.pts ? PATROL_RZ : PATROL_R;
 const HELI_PREY = { drone: 1, decoy: 1, loiter: 1, recon: 1, ewuav: 1, fpv: 1, mother: 1, arm: 1 };
 
 function patrolCenter(pt) {
@@ -490,13 +525,14 @@ function patrolCenter(pt) {
  */
 function forwardBase(u, pt) {
   if (!u.home) u.home = { ...u.base };
-  const c = patrolCenter({ ...pt }), h = G.hq || u.home;
+  const c = pt.pts ? { x: avg(pt.pts.map(q => q.x)), y: avg(pt.pts.map(q => q.y)) } : patrolCenter({ ...pt }), h = G.hq || u.home;
   const d = dist(c, h) || 1;
   const p = { x: c.x + (h.x - c.x) / d * Math.min(8, d), y: c.y + (h.y - c.y) / d * Math.min(8, d) };
   return side(p.x, p.y) === 1 && dist(p, c) < dist(u.home, c) ? p : { ...u.home };
 }
 
 function patrolName(pt) {
+  if (pt.pts) return `маршрут из ${pt.pts.length} зон, от кв. ${sq(pt.pts[0])}`;
   if (pt.obj) { const o = objById(pt.obj); if (o) return '«' + o.n + '»' }
   if (pt.uid) { const v = unitById(pt.uid); if (v) return 'прикрытие «' + v.crew.cs + '»' }
   return 'кв. ' + sq(pt);
@@ -507,15 +543,18 @@ function heliStep(u, T, dt) {
   const st = T.sp * dt;
   /* охота: ближайшая подходящая цель в секторе */
   if (u.patrol && !u.rtb && u.am > 0) {
-    const c = patrolCenter(u.patrol);
+    const pr = patrolR(u.patrol);
     let ch = u.chase ? thrById(u.chase) : null;
-    if (ch && (ch.dead || dist(ch, c) > PATROL_R * 1.6 || G.t - ch.seen > 30)) ch = null;
+    if (ch && (ch.dead || patrolDist(ch, u.patrol) > pr * 1.6 || G.t - ch.seen > 30)) ch = null;
     if (!ch && G.t - (u.huntT || -1e9) > 5) {
       u.huntT = G.t;
-      let bd = PATROL_R;
+      /* в секторе — ближайшую к центру; на маршруте — ближайшую к самому вертолёту */
+      let bd = 1e9;
       for (const th of G.threats) {
         if (th.dead || !HELI_PREY[th.cls] || G.t - th.seen > 10 || th.alt === 'high') continue;
-        const d = dist(th, c);
+        const dz = patrolDist(th, u.patrol);
+        if (dz > pr) continue;
+        const d = u.patrol.pts ? dist(th, u) : dz;
         if (d < bd) { bd = d; ch = th }
       }
       if (ch && u.chase !== ch.id) sayT(u, 'hunt', 90, phr('hunt', { d: num(dist(u, ch), 0) }, u));
@@ -532,10 +571,18 @@ function heliStep(u, T, dt) {
       return heliFuel(u);
     }
   }
-  const tgt = u.dest || (u.patrol ? patrolCenter(u.patrol) : null) || u.base;
+  const route = u.patrol && u.patrol.pts && !u.dest && !u.rtb;
+  const tgt = u.dest || (u.patrol ? (u.patrol.pts ? u.patrol.pts[u.patrol.leg % u.patrol.pts.length] : patrolCenter(u.patrol)) : null) || u.base;
   if (tgt) {
     const d = dist(u, tgt);
-    if (u.patrol && !u.dest && !u.rtb && d < 7) {
+    if (route) {
+      /* маршрут: от зоны к зоне по кругу */
+      if (d < 1.5) u.patrol.leg = (u.patrol.leg + 1) % u.patrol.pts.length;
+      else {
+        u.h = Math.atan2(tgt.y - u.y, tgt.x - u.x);
+        u.x += (tgt.x - u.x) / d * Math.min(st, d); u.y += (tgt.y - u.y) / d * Math.min(st, d);
+      }
+    } else if (u.patrol && !u.dest && !u.rtb && d < 7) {
       /* круг над сектором, плавно */
       /* круг радиусом 6 км со своей скоростью */
       u.orb = (u.orb == null ? Math.atan2(u.y - tgt.y, u.x - tgt.x) : u.orb) + dt * T.sp / 6 * .85;

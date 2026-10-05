@@ -3,12 +3,22 @@
    ВОЗДУШНЫЕ ЦЕЛИ: полёт, барражирование, наведение антирадарных БпЛА, попадания.
    ============================================================ */
 
+/* профиль крылатой ракеты: высокий — быстрее и точнее, но на виду у всей сети РЛС;
+   предельно малая высота — скрытно, но шанс задеть рельеф (на км пути) */
+const HI_ALT_SP = 1.2;
+const LOW_CRASH = .00022;
+
 function spawnThreat(q) {
   const T = TT[q.k];
   let alt = T.prof;
   /* игрок налёта может поднять дроны на 2–3 км (флаг пакета) */
   if ((T.cls === 'drone' || T.cls === 'decoy') && q.high) alt = 'mid';
   else if ((T.cls === 'drone' || T.cls === 'decoy') && chance(E.adapt.highAlt)) alt = 'mid';
+  /* крылатая ракета высоким профилем: игрок налёта выбирает сам, ИИ — иногда */
+  const hiAlt = T.cls === 'cruise' && (q.high || (!MODE.humans.includes('atk') && chance(.2)));
+  if (hiAlt) alt = 'high';
+  /* КАБ: самолёт-носитель над передним краем рискует попасть под ЗРК */
+  if (T.carrier && carrierLost(q)) return;
   const th = {
     id: G.idc++, k: q.k, cls: T.cls, x: q.x, y: q.y, sx: q.x, sy: q.y,
     path: q.path.map(p => ({ x: p.x, y: p.y })), tgt: q.tgt, gid: q.gid,
@@ -17,12 +27,43 @@ function spawnThreat(q) {
     armTgt: null, loiterT: 0, retgt: 0, degraded: false, hunt: null
   };
   if (q.mom != null) { th.mom = q.mom; th.flown = q.flown || 0 }
+  if (hiAlt) th.hiAlt = 1;
   const p = th.path[0], d = Math.hypot(p.x - th.x, p.y - th.y) || 1;
   th.hx = (p.x - th.x) / d; th.hy = (p.y - th.y) / d;
   G.threats.push(th);
   S.launched[q.k]++;
   const g = E.groups.find(g => g.id === q.gid);
   if (g) g.launched++;
+}
+
+/* ---------- КАБ: носитель над передним краем ----------
+   Один раз на пакет: если к месту сброса достаёт работающий «Щит» или
+   «Бастион», самолёт могут сбить до сброса — весь пакет пропадает. */
+function carrierLost(q) {
+  const g = E.groups.find(x => x.id === q.gid);
+  if (g && g.carrier) return g.carrier === 'lost';
+  let u = null;
+  for (const v of G.units) {
+    if ((v.k !== 'shield' && v.k !== 'bastion') || v.st !== 'ready' || !v.rOn || !v.am) continue;
+    if (dist(v, q) < UT[v.k].w.r + 12) { u = v; break }
+  }
+  const lost = !!u && chance(u.k === 'bastion' ? .5 : .3);
+  if (g) g.carrier = lost ? 'lost' : 'ok';
+  if (!lost) return false;
+  u.am--; u.kills++; S.jets = (S.jets || 0) + 1;
+  fx({ k: 'launch', x: u.x, y: u.y, d: 520, a: Math.atan2(q.y - u.y, q.x - u.x) });
+  fx({ k: 'air', x: q.x, y: q.y, d: 900 });
+  if (MODE.humans.includes('def')) asSide('def', () => {
+    say(u, pick(['Есть! Сбили бомбардировщик над передним краем, бомбы не сброшены!', 'Цель — фронтовой бомбардировщик, поражена! Падает за линией фронта.', 'Самолёт-носитель КАБ сбит!']), 'g');
+    moraleAdd(3);
+  });
+  if (g) {
+    const left = E.queue.filter(x => x.gid === g.id).length;
+    E.queue = E.queue.filter(x => x.gid !== g.id);
+    g.n = g.launched; g.lost += left + 1;
+    if (MODE.humans.includes('atk')) asSide('atk', () => hq(`✖ Носитель КАБ сбит над передним краем (${UT[u.k].n} у линии фронта). Бомбы пакета потеряны: ${left + 1}.`, 'crit'));
+  }
+  return true;
 }
 
 /** антирадарный БпЛА ищет работающий излучатель */
@@ -101,7 +142,15 @@ function threatsStep(dt) {
       continue;
     }
 
-    let rem = T.sp * windMul(th) * dt;
+    /* крылатая на предельно малой высоте: на долгом маршруте может задеть рельеф (в плохую видимость — чаще) */
+    if (th.cls === 'cruise' && !th.hiAlt && !th.lost && chance(T.sp * dt * LOW_CRASH * (G.weather.eo < .8 ? 1.8 : 1))) {
+      th.lost = true; th.crashed = true;
+      th.path = [{ x: th.x + th.hx * R(.3, 1.5), y: th.y + th.hy * R(.3, 1.5) }];
+      S.crash = (S.crash || 0) + 1;
+      if (MODE.onCrash) MODE.onCrash(th);
+    }
+
+    let rem = T.sp * windMul(th) * (th.hiAlt ? HI_ALT_SP : 1) * dt;
     while (rem > 0 && th.path.length) {
       const p = th.path[0], dx = p.x - th.x, dy = p.y - th.y, d = Math.hypot(dx, dy);
       if (d <= rem) { th.x = p.x; th.y = p.y; rem -= d; th.path.shift() }
@@ -125,16 +174,17 @@ function impact(th) {
       const n = Math.round(RI(0, 3) * alarmMul());
       civLoss(n);
       hq(`Потерявший навигацию ${thLabel(th)} упал в черте города ${c.gen}.${n ? ' Пострадавшие: ' + n + '.' : ' Без пострадавших.'}`, 'w');
-      fx({ k: 'boom', x: th.x, y: th.y, d: 900 });
-    } else if (T.wh) fx({ k: 'boom', x: th.x, y: th.y, d: 700, small: 1 });
+      fx({ k: 'boom', x: th.x, y: th.y, d: 900, w: T.wh });
+    } else if (T.wh) fx({ k: 'boom', x: th.x, y: th.y, d: 700, small: 1, w: T.wh });
     return;
   }
   if (!T.wh) return;
 
-  const cep = ({ drone: .12, loiter: .09, jet: .1, cruise: .06, arm: .1, ballistic: .08, aeroball: .1, fpv: .02 }[th.cls] || .1)
+  const cep = ({ drone: .12, loiter: .09, jet: .1, cruise: .06, arm: .1, ballistic: .08, aeroball: .1, fpv: .02, kab: .08 }[th.cls] || .1)
+    * (th.hiAlt ? .6 : 1)  /* высокий профиль: точнее выходит на цель */
     * (th.degraded ? 3.5 : 1);   /* РЭБ сбила спутниковую поправку: ракета идёт по инерциальной системе, промах больше */
   const p = { x: th.x + R(-1, 1) * cep * 3, y: th.y + R(-1, 1) * cep * 3 };
-  fx({ k: 'boom', x: p.x, y: p.y, d: 1200 });
+  fx({ k: 'boom', x: p.x, y: p.y, d: 1200, w: T.wh, city: !!inCity(p) });
   S.hits[th.k]++;
   if (g) g.hit++;
 
@@ -173,7 +223,7 @@ function impact(th) {
     /* под тревогой объект переведён в аварийный режим: агрегаты остановлены, люди в укрытиях — ущерб меньше */
     /* FPV бьёт слабо, но точно: трансформатор подстанции выводит из строя всерьёз */
     const fpvK = T.hunt ? (o.type === 'sub' ? 1.1 : .5) : 1;
-    const dmg = T.wh * R(.7, 1.3) / OT[o.type].hard * fpvK * (G.alarm ? .8 : 1);
+    const dmg = T.wh * R(.7, 1.3) / OT[o.type].hard / OBJ_TOUGH * fpvK * (G.alarm ? .8 : 1);
     const before = o.hp;
     o.hp = Math.max(0, o.hp - dmg);
     o.hitT = G.t;

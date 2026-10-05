@@ -7,7 +7,7 @@
 
 function eInit() {
   E = {
-    stock: { fpv: 30, ulei: 4, jalo: 70, moth: 30, shershen: 14, strizh: 6, sova: 4, vual: 2, grach: 6, krechet: 10, albatros: 16, molot: 6, garpia: 2 },
+    stock: { fpv: 30, ulei: 4, plita: 16, jalo: 70, moth: 30, shershen: 14, strizh: 6, sova: 4, vual: 2, grach: 6, krechet: 10, albatros: 16, molot: 6, garpia: 2 },
     know: {}, heat: {}, groups: [], queue: [], gid: 1, zuse: {}, wi: {},
     adapt: { ewRes: 0, highAlt: 0, decoy: .3, jet: 0, arm: 0, loiter: 0 },
     learn: { ew: 0, emptySEAD: 0 },
@@ -26,6 +26,7 @@ function eDay(first) {
     const st = E.stock;
     st.fpv = (st.fpv || 0) + 14 + 2 * n;
     st.ulei = (st.ulei || 0) + 2 + (n > 2 ? 1 : 0);
+    st.plita = (st.plita || 0) + 10;
     st.jalo += 45 + 8 * n; st.moth += 22 + 5 * n; st.shershen += 6 + n;
     st.strizh += 3 + n; st.sova += 3; st.vual += 1; st.grach += 3 + (n > 2 ? 2 : 0);
     st.krechet += 4; st.albatros += 6; st.molot += 3 + (n > 2 ? 1 : 0); st.garpia += 1;
@@ -33,6 +34,13 @@ function eDay(first) {
     for (const key in E.heat) E.heat[key] *= .6;
   }
   E.groups = []; E.queue = []; E.zuse = {}; E.wi = {}; E.bda = {}; E.reserve = null;
-  /* пусковая логистика игрока: израсходованный ночной лимит и занятость площадок */
+  /* пусковая логистика игрока: неизрасходованный ночной лимит наполовину переходит
+     на следующую ночь (расчёты готовят впрок, но не больше ещё одного лимита) */
+  const used = E.used || {}, bonus = E.capBonus || {};
+  E.capBonus = {};
+  if (!first) for (const g in LAUNCH.nightCap) {
+    const left = LAUNCH.nightCap[g] + (bonus[g] || 0) - (used[g] || 0);
+    if (left > 1) E.capBonus[g] = Math.min(LAUNCH.nightCap[g], Math.floor(left * .5));
+  }
   E.used = {}; E.zbook = {}; E.feints = []; E.feintUsed = {};
 }

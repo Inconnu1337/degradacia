@@ -103,15 +103,96 @@ const DefenseRender = (() => {
       cx.strokeStyle = col + '77';
       cx.lineWidth = 1.4;
       cx.beginPath(); cx.moveTo(q.x, q.y); cx.lineTo(q.x + th.hx * len, q.y + th.hy * len); cx.stroke();
-      if (G.showRoutes && th.vis) {
-        const o = predictObj(th);
-        if (o) {
-          const p = w2s(o);
-          cx.strokeStyle = 'rgba(255,90,70,.22)';
-          cx.setLineDash([3, 6]); cx.lineWidth = 1;
-          cx.beginPath(); cx.moveTo(q.x, q.y); cx.lineTo(p.x, p.y); cx.stroke(); cx.setLineDash([]);
-        }
+      const sel = G.sel && G.sel.type === 't' && G.sel.id === th.id;
+      if (th.vis && G.t - th.seen < 8 && (AIM_CLS[th.cls] || sel || G.showRoutes)) drawAimGuess(th, q, s, sel);
+    }
+  }
+
+  /* ---------- куда может прилететь ----------
+     Ракеты (и любая цель, выбранная или при включённых маршрутах «R»):
+     сектор вероятного курса — он шире у дронов, которые петляют, — и
+     вероятный объект по текущему курсу со временем подлёта. Баллистика —
+     точка падения, она известна по траектории. */
+  const PATROL_RZ_C = 12;   /* радиус зоны маршрута патруля (как PATROL_RZ на сервере) */
+  const AIM_CLS = { cruise: 14, jet: 16, arm: 18, ballistic: 1, aeroball: 1 };
+
+  function drawAimGuess(th, q, s, sel) {
+    const ball = th.cls === 'ballistic' || th.cls === 'aeroball';
+    const pulse = .6 + .4 * Math.sin(GANIM * 5);
+    if (ball) {
+      const end = th.path && th.path[th.path.length - 1];
+      if (!end) return;
+      const p = w2s(end), r = Math.max(6, 1.6 * s);
+      cx.strokeStyle = 'rgba(240,107,255,.55)'; cx.lineWidth = 1.2;
+      cx.beginPath(); cx.moveTo(q.x, q.y); cx.lineTo(p.x, p.y); cx.stroke();
+      cx.fillStyle = `rgba(240,107,255,${.12 * pulse})`; cx.strokeStyle = `rgba(240,107,255,${.8 * pulse})`; cx.lineWidth = 1.6;
+      cx.beginPath(); cx.arc(p.x, p.y, r, 0, 7); cx.fill(); cx.stroke();
+      cx.beginPath(); cx.moveTo(p.x - r * 1.5, p.y); cx.lineTo(p.x + r * 1.5, p.y); cx.moveTo(p.x, p.y - r * 1.5); cx.lineTo(p.x, p.y + r * 1.5); cx.stroke();
+      aimLabel(p, r, `падение через ${fmtDur(dist(th, end) / (th.sp || 1))}`, '#f3a8ff');
+      return;
+    }
+    const spread = (AIM_CLS[th.cls] || 24) * Math.PI / 180;
+    const o = predictObj(th);
+    const L = (o ? Math.min(dist(th, o) + 6, 90) : 45) * s;
+    const a0 = Math.atan2(th.hy, th.hx);
+    /* сектор */
+    const g = cx.createRadialGradient(q.x, q.y, 0, q.x, q.y, L);
+    g.addColorStop(0, 'rgba(255,90,70,.24)'); g.addColorStop(1, 'rgba(255,90,70,0)');
+    cx.fillStyle = g;
+    cx.beginPath(); cx.moveTo(q.x, q.y); cx.arc(q.x, q.y, L, a0 - spread, a0 + spread); cx.closePath(); cx.fill();
+    if (!o) return;
+    const p = w2s(o);
+    cx.strokeStyle = sel ? 'rgba(255,110,90,.85)' : 'rgba(255,110,90,.5)';
+    cx.setLineDash([5, 5]); cx.lineDashOffset = -GANIM * 18; cx.lineWidth = 1.2;
+    cx.beginPath(); cx.moveTo(q.x, q.y); cx.lineTo(p.x, p.y); cx.stroke();
+    cx.setLineDash([]); cx.lineDashOffset = 0;
+    const r = clamp(10 + s * 2.2, 14, 34);
+    cx.strokeStyle = `rgba(255,90,70,${.75 * pulse})`; cx.lineWidth = 1.8;
+    for (let i = 0; i < 4; i++) {
+      const a = i * Math.PI / 2 + Math.PI / 4;
+      cx.beginPath(); cx.arc(p.x, p.y, r, a - .35, a + .35); cx.stroke();
+    }
+    aimLabel(p, r, `${o.n} · ≈${fmtDur(dist(th, o) / (th.sp || 1))}`, '#ffb0a3');
+  }
+
+  function aimLabel(p, r, txt, col) {
+    cx.font = '600 10px system-ui, sans-serif'; cx.textAlign = 'center';
+    const w = cx.measureText(txt).width + 8;
+    cx.fillStyle = 'rgba(10,8,8,.75)'; cx.fillRect(p.x - w / 2, p.y + r + 3, w, 13);
+    cx.fillStyle = col; cx.fillText(txt, p.x, p.y + r + 13);
+  }
+
+  /* ---------- зоны патруля вертолётов и маршрут, который сейчас кликают ---------- */
+  function drawPatrols(s) {
+    const selU = G.sel && G.sel.type === 'u' ? G.sel.id : null;
+    const ring = (c, r, col, fill) => {
+      const q = w2s(c);
+      cx.beginPath(); cx.arc(q.x, q.y, r * s, 0, 7);
+      if (fill) { cx.fillStyle = fill; cx.fill() }
+      cx.strokeStyle = col; cx.setLineDash([6, 5]); cx.lineWidth = 1.3; cx.stroke(); cx.setLineDash([]);
+      return q;
+    };
+    for (const u of G.units) {
+      if (!u.patrol || (!G.showZones && selU !== u.id)) continue;
+      const on = selU === u.id;
+      const col = on ? 'rgba(255,214,120,.8)' : 'rgba(255,214,120,.35)', fill = on ? 'rgba(255,214,120,.05)' : null;
+      const pts = u.patrol.pts || [u.patrol];
+      const qs = pts.map(p => ring(p, u.patrol.r || 24, col, fill));
+      if (qs.length > 1) {
+        cx.strokeStyle = col; cx.lineWidth = 1.2; cx.setLineDash([2, 5]);
+        cx.beginPath(); qs.forEach((q, i) => i ? cx.lineTo(q.x, q.y) : cx.moveTo(q.x, q.y)); cx.closePath(); cx.stroke(); cx.setLineDash([]);
+        qs.forEach((q, i) => {
+          cx.fillStyle = i === u.patrol.leg ? '#ffd479' : 'rgba(255,214,120,.6)';
+          cx.font = '600 11px system-ui, sans-serif'; cx.textAlign = 'center'; cx.fillText(String(i + 1), q.x, q.y + 4);
+        });
       }
+    }
+    const m = G.mode;
+    if (m && m.t === 'patrol' && m.pts && m.pts.length) {
+      const qs = m.pts.map(p => ring(p, PATROL_RZ_C, 'rgba(255,214,120,.9)', 'rgba(255,214,120,.07)'));
+      cx.strokeStyle = 'rgba(255,214,120,.9)'; cx.lineWidth = 1.4;
+      cx.beginPath(); qs.forEach((q, i) => i ? cx.lineTo(q.x, q.y) : cx.moveTo(q.x, q.y)); cx.stroke();
+      qs.forEach((q, i) => { cx.fillStyle = '#ffd479'; cx.font = '600 11px system-ui, sans-serif'; cx.textAlign = 'center'; cx.fillText(String(i + 1), q.x, q.y + 4) });
     }
   }
 
@@ -251,6 +332,7 @@ const DefenseRender = (() => {
     hq: drawHQ,
     tracks: drawTracksTail,
     units: drawUnits,
-    threats: drawThreats
+    threats: drawThreats,
+    plan: drawPatrols
   };
 })();

@@ -55,6 +55,8 @@ const DefensePrep = (() => {
       G.budget += Math.round(UT[u.k].cost * .5);
     }});
 
+    makeOffers();
+
     const n = RI(1, 2);
     const pool = shuffled(evs);
     let done = 0;
@@ -67,7 +69,44 @@ const DefensePrep = (() => {
     }
   }
 
+  /* ---------- предложение партнёров: одно из трёх на выбор ----------
+     Каждый день три варианта поставки; штаб берёт один (команда offer).
+     Невыбранное сгорает с началом ночи. */
+  const OFFER_UNITS = ['spaag', 'krom', 'icpt', 'ew', 'heli', 'horizon'];
+
+  function makeOffers() {
+    const sams = G.units.filter(u => UT[u.k].w && UT[u.k].w.kind === 'missile' && UT[u.k].w.mc >= .18);
+    const dmg = G.objs.filter(o => o.hp < 100);
+    const cash = RI(35, 55), unit = pick(OFFER_UNITS);
+    const all = [
+      { t: 'cash', v: cash, n: `Транш администрации: +${cash} млн`, d: 'Деньги на закупку, боеприпасы и ремонт.' },
+      { t: 'unit', k: unit, n: `Расчёт: ${UT[unit].n}`, d: `Передаётся без оплаты (обычно ${UT[unit].cost} млн), разместите на карте.` }
+    ];
+    if (sams.length) all.push({ t: 'ammo', n: 'Эшелон зенитных ракет', d: `Полный боекомплект всем ЗРК и ПЗРК (${sams.length} расч.) бесплатно, плюс запас: на ближайшую ночь пополнение вдвое дешевле.` });
+    if (dmg.length) all.push({ t: 'repair', n: 'Энергетики соседних краёв', d: `Все повреждённые объекты (${dmg.length}) +20% к состоянию.` });
+    all.push({ t: 'crew', n: 'Бригады ДСНС и ремонтники', d: 'На ближайшую ночь +2 пожарные и +2 ремонтные бригады.' });
+    G.offers = shuffled(all).slice(0, 3);
+    G.offerTaken = false;
+  }
+
+  function takeOffer(i) {
+    if (G.phase !== 'prep') return { ok: false, error: 'Поставки принимают днём' };
+    if (G.offerTaken || !G.offers || !G.offers[i]) return { ok: false, error: 'Предложение уже выбрано' };
+    const o = G.offers[i];
+    G.offerTaken = true;
+    if (o.t === 'cash') G.budget += o.v;
+    else if (o.t === 'unit') G.gifts.push(o.k);
+    else if (o.t === 'ammo') { for (const u of G.units) if (UT[u.k].w && UT[u.k].w.kind === 'missile') u.am = UT[u.k].w.am; G.ammoDeal = 1 }
+    else if (o.t === 'repair') for (const ob of G.objs) if (ob.hp < 100) ob.hp = Math.min(100, ob.hp + 20);
+    else if (o.t === 'crew') G.crewBonus = 1;
+    hq(`Принято предложение партнёров: ${esc(o.n)}.`, 'g');
+    G.offers = [o];
+    return { ok: true };
+  }
+
   return {
-    prepEvents
+    prepEvents,
+    makeOffers,
+    takeOffer
   };
 })();

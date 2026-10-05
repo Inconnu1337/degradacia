@@ -47,13 +47,19 @@ const DefenseInput = (() => {
         return;
       }
       if (m.t === 'patrol') {
-        /* сектор можно привязать к объекту или своему расчёту — клик по нему */
+        /* сектор можно привязать к объекту или своему расчёту — клик по нему;
+           клики по карте собирают маршрут из зон (до PATROL_MAX) */
         const hit = pickAt(sp);
-        const o = { t: 'patrol', p };
-        if (hit && hit.type === 'o') o.obj = hit.id;
-        else if (hit && hit.type === 'u' && hit.id !== m.id) o.uid = hit.id;
-        G.mode = null; hint('');
-        cmd('order', { id: m.id, o });
+        if (!(m.pts && m.pts.length) && hit && (hit.type === 'o' || (hit.type === 'u' && hit.id !== m.id))) {
+          const o = { t: 'patrol', p };
+          if (hit.type === 'o') o.obj = hit.id; else o.uid = hit.id;
+          G.mode = null; hint('');
+          cmd('order', { id: m.id, o });
+          uiDirty(); return;
+        }
+        m.pts = (m.pts || []).concat([{ x: p.x, y: p.y }]);
+        if (m.pts.length >= PATROL_MAX) { sendPatrol(); return }
+        hint(`Зона ${m.pts.length} из ${PATROL_MAX}. Кликайте следующую или ПКМ / Enter — готово${m.pts.length === 1 ? ' (одна зона — обычный сектор)' : ''}.`);
         uiDirty(); return;
       }
       if (m.t === 'move') {
@@ -74,6 +80,18 @@ const DefenseInput = (() => {
     uiDirty();
   }
 
+  /** отдать вертолёту собранный маршрут патруля */
+  function sendPatrol() {
+    const m = G.mode;
+    if (!m || m.t !== 'patrol' || !m.pts || !m.pts.length) return false;
+    G.mode = null; hint('');
+    cmd('order', { id: m.id, o: m.pts.length > 1 ? { t: 'patrol', pts: m.pts } : { t: 'patrol', p: m.pts[0] } }).then(() => { lastRC = ''; uiDirty() });
+    uiDirty();
+    return true;
+  }
+
+  function onContextMenu() { return sendPatrol() }
+
   /** выбрать средство для покупки: дальше клик по карте (бюджет проверит сервер) */
   function startBuy(k, gift) {
     if (G.phase !== 'prep' && G.phase !== 'night') return;
@@ -91,11 +109,12 @@ const DefenseInput = (() => {
       case 'ans': cmd('ans', { id: +id, i: +el.dataset.i }).then(sent); break;
       case 'buy': startBuy(el.dataset.k, el.dataset.gift); break;
       case 'repair': cmd('repair', { id }).then(sent); break;
+      case 'offer': cmd('offer', { i: +el.dataset.i }).then(sent); break;
       case 'extinguish': cmd('extinguish', { id }).then(sent); break;
       case 'fixu': cmd('fixu', { id: +id }).then(sent); break;
       case 'sell': { const u = selU(); if (u) cmd('sell', { id: u.id }).then(r => { if (r.ok) G.sel = null; sent() }); break }
       case 'mMove': { const u = selU(); if (u) { G.mode = { t: 'move', id: u.id }; hint('Укажите точку выдвижения. ПКМ — отмена.') } uiDirty(); break }
-      case 'mPatrol': { const u = selU(); if (u) { G.mode = { t: 'patrol', id: u.id }; hint('Сектор патруля: клик по объекту или своему расчёту — прикрывать его; по карте — точка. Вертолёт сам ищет цели и ходит на заправку.') } uiDirty(); break }
+      case 'mPatrol': { const u = selU(); if (u) { G.mode = { t: 'patrol', id: u.id }; hint(`Патруль: клик по объекту или своему расчёту — прикрывать его. Клики по карте — зоны маршрута (до ${PATROL_MAX}), ПКМ / Enter — готово. Вертолёт сам ищет цели и ходит на заправку.`) } uiDirty(); break }
       case 'mCover': { const u = selU(); if (u) { G.mode = { t: 'cover', id: u.id }; hint('Укажите защищаемый объект на карте.') } uiDirty(); break }
       case 'ord': { const u = selU(); if (u) cmd('order', { id: u.id, o: { t: el.dataset.o } }).then(sent); break }
       case 'roe': { const u = selU(); if (u) cmd('order', { id: u.id, o: { t: 'roe', v } }).then(sent); break }
@@ -118,6 +137,8 @@ const DefenseInput = (() => {
     pickAt,
     mapClick,
     tooltip,
+    onContextMenu,
+    sendPatrol,
     onAction
   };
 })();
