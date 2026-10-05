@@ -17,6 +17,8 @@ function renderAll() {
   renderBalBar();
   const zb = $('#btnZones');
   if (zb && zb.classList) zb.classList.toggle('on', G.showZones);
+  const ab = $('#btnAim');
+  if (ab && ab.classList) ab.classList.toggle('on', G.showAim !== false);
   const sb = $('#btnSpoil');
   if (sb && sb.classList) sb.classList.toggle('on', G.spoil);
   dirty = false;
@@ -38,6 +40,7 @@ function applyHud() {
   const z = $('#btnZones');
   z.textContent = h.zonesText; z.title = h.zonesTitle;
   $('#btnAlarm').hidden = !h.alarmBtn;
+  $('#btnAim').hidden = !h.aimBtn;
   $('#btnSpoil').hidden = !h.spoilBtn || duel;
   $('#btnMode').textContent = 'Меню · ' + sm.title;
   netBar();

@@ -17,6 +17,7 @@ const DefenseRadio = (() => {
 
   function intelAt(t, txt, gr, cls, ch) {
     if (ch !== undefined && Math.random() > ch) return;
+    if (cls === 'crit') (G.missileWarn = G.missileWarn || []).push(t);
     G.intelQ.push({ t, txt, gr, cls });
     G.intelQ.sort((a, b) => a.t - b.t);
   }

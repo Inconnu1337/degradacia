@@ -14,14 +14,14 @@ let G = null, E = null, S = null;
 /** партия: код, режим сервера, моя сторона, кто подключён */
 const Game = { room: null, mode: null, role: null, humans: [], seats: {}, link: false };
 
-const LOCAL_KEYS = ['sqFlash', 'sel', 'mode', 'view', 'showZones', 'showRoutes', 'tabL', 'tabR', 'unread', 'fx', 'spoil', 'plan'];
+const LOCAL_KEYS = ['sqFlash', 'sel', 'mode', 'view', 'showZones', 'showAim', 'showRoutes', 'tabL', 'tabR', 'unread', 'fx', 'spoil', 'plan'];
 
 const Store = (() => {
   let snapAt = 0, snapGap = 100;
 
   function freshLocal() {
     return {
-      sel: null, mode: null, view: { x: 225, y: 168, s: 2.2 }, showZones: false, showRoutes: true,
+      sel: null, mode: null, view: { x: 225, y: 168, s: 2.2 }, showZones: false, showAim: true, showRoutes: true,
       tabL: 'radio', tabR: null, unread: { radio: 0, intel: 0 }, fx: [], spoil: false, plan: null
     };
   }

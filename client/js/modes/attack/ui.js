@@ -49,7 +49,7 @@ const AttackUI = (() => {
       <span class="nm">${esc(o.n)}<br><span class="mu">${OT[o.type].n} · важность ${o.v}</span></span>
       <span class="mu" style="color:${hpCol(o.hp)}">${Math.round(o.hp)}%</span></div>`;
     }
-    $('#lc_obj').innerHTML = h;
+    paint($('#lc_obj'), h);
   }
 
   function renderContacts() {
@@ -63,7 +63,7 @@ const AttackUI = (() => {
       <span class="nm">${esc(UT[k.type] ? UT[k.type].n : k.type)}<br><span class="mu">кв. ${sq(k)} · ${esc(k.src)}${dead ? ' · поражён' : ''}</span></span>
       <span class="mu">${pc(k.conf)}</span></div>`;
     }
-    $('#lc_intel').innerHTML = h;
+    paint($('#lc_intel'), h);
   }
 
   function renderThreatBar() {
@@ -71,7 +71,7 @@ const AttackUI = (() => {
     const live = G.threats.filter(th => !th.dead);
     if (!live.length) {
       const h = '<div class="tbe">В воздухе пусто</div>';
-      if (h !== lastTB) { $('#threatbar').innerHTML = h; lastTB = h; }
+      if (h !== lastTB && paint($('#threatbar'), h)) lastTB = h;
       return;
     }
     const grp = {};
@@ -84,7 +84,7 @@ const AttackUI = (() => {
       const g = grp[k];
       h += `<div class="tch" data-a="selt" data-id="${g.th.id}" style="--c:${AIR_COL[g.th.cls] || '#f2b33d'}"><b>${g.n}</b> ${esc(TT[k].n)}</div>`;
     }
-    if (h !== lastTB) { $('#threatbar').innerHTML = h; lastTB = h; }
+    if (h !== lastTB && paint($('#threatbar'), h)) lastTB = h;
   }
 
   /** кнопка перенацеливания: только средства с каналом связи, ночью, раз в RETARGET_GAP */
@@ -194,7 +194,7 @@ const AttackUI = (() => {
     </div>`;
       h += feintHTML(p);
     }
-    if (h !== lastRC) { $('#rc').innerHTML = h; linkSquares($('#rc')); lastRC = h; }
+    if (h !== lastRC && paint($('#rc'), h)) { linkSquares($('#rc')); lastRC = h; }
   }
 
   function helpModal() {
@@ -208,7 +208,7 @@ const AttackUI = (() => {
   <li>«Начать налёт» — 19:00. Ускорение сверху, пауза — пробел.</li>
   <li>Автомаршрут обходит только известные зоны. «Свой маршрут» — изломы кликами.</li>
   <li>«Мотыльки» жгут их ракеты. «Сова» и излучающие РЛС вскрывают позиции. «Молот» и «Грач» бьют по контактам.</li>
-  <li>КАБ «Плита» сбрасывают над передним краем, она планирует до 70 км — по технике у фронта. Если там работает их «Щит» или «Бастион», самолёт могут сбить.</li>
+  <li>КАБ «Плита» сбрасывают над передним краем, она планирует до 95 км — по технике у фронта и ближним объектам. Если их «Щит» или «Бастион» стоит недалеко от фронта и излучает, самолёт могут сбить.</li>
   <li>Крылатые ракеты: «предельно низко» — скрытно, но иногда задевают рельеф; «высоко» — быстрее и точнее, но их видит вся сеть РЛС.</li>
   <li>Неиспользованный ночной лимит наполовину переходит на следующую ночь: можно копить на большой удар.</li>
   <li>FPV «Оса» с переднего края выбивает посты наблюдения и мобильные группы, а камера вскрывает технику. Вглубь края FPV довозит «Улей»: сбрасывает рой за 20 км до цели и держит связь — собьют носитель, рой ослепнет.</li>

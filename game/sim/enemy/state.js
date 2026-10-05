@@ -26,7 +26,7 @@ function eDay(first) {
     const st = E.stock;
     st.fpv = (st.fpv || 0) + 14 + 2 * n;
     st.ulei = (st.ulei || 0) + 2 + (n > 2 ? 1 : 0);
-    st.plita = (st.plita || 0) + 10;
+    st.plita = (st.plita || 0) + 8;
     st.jalo += 45 + 8 * n; st.moth += 22 + 5 * n; st.shershen += 6 + n;
     st.strizh += 3 + n; st.sova += 3; st.vual += 1; st.grach += 3 + (n > 2 ? 2 : 0);
     st.krechet += 4; st.albatros += 6; st.molot += 3 + (n > 2 ? 1 : 0); st.garpia += 1;

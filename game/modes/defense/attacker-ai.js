@@ -107,6 +107,15 @@ const DefenseAI = (() => {
         eGroup('plita', Math.min(st.plita, RI(2, 4)), z, { aim: { x: k.x, y: k.y, uid: k.uid } }, { launch: t0 + R(1, 9) * 3600, style: 'direct', op: 'КАБ' });
         mind(`Фронтовая авиация: КАБ по ${UT[k.type].n} у переднего края (${pc(k.conf)}). Сброс с 10 км — их ЗРК там нет, самолёт не рискует.`);
       }
+      /* техники в досягаемости не видно — по ближнему к фронту объекту */
+      if (!near.length && chance(.6)) {
+        const o = G.objs.filter(o => o.hp > 20 && fronts.some(z => dist(z, o) < R0)).sort((a, b) => b.v - a.v)[0];
+        if (o) {
+          const z = fronts.slice().sort((a, b) => dist(a, o) - dist(b, o))[0];
+          eGroup('plita', Math.min(st.plita, RI(3, 6)), z, { obj: o }, { launch: t0 + R(1, 9) * 3600, style: 'direct', op: 'КАБ' });
+          mind(`Фронтовая авиация: КАБ по «${o.n}» — объект в досягаемости планирующих бомб.`);
+        }
+      }
     }
     if (!(st.ulei > 0)) return;
     const sam = kn.find(k => k.conf >= .45);

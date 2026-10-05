@@ -261,20 +261,16 @@ function drawFires(s) {
     if (!onScreen(q, 140)) continue;
     const R = (5 + f * 9) * k * zoom;
     const seed = p.x * 13.7 + p.y * 7.1;
-    /* дым: клубы поднимаются, растут, бледнеют, их сносит ветром */
-    cx.save();
-    for (let i = 0; i < 7; i++) {
-      const ph = (T * .18 + i / 7 + seed) % 1;
-      const r = R * (.45 + ph * 1.3);
-      const sx = q.x + wx * ph * R * 3.2 + Math.sin(seed + i) * R * .2;
-      const sy = q.y - R * .8 - ph * R * 4.2 + wy * ph * R * 1.5;
-      const g = cx.createRadialGradient(sx, sy, 0, sx, sy, r);
-      g.addColorStop(0, `rgba(84,80,76,${(1 - ph) * .5 * f + .06})`);
-      g.addColorStop(1, 'rgba(84,80,76,0)');
-      cx.fillStyle = g;
-      cx.fillRect(sx - r, sy - r, r * 2, r * 2);
+    /* дым: клубы с рваным краем поднимаются, растут, бледнеют, их сносит ветром */
+    const wa = Math.atan2(wy - 1.2, wx);
+    for (let i = 0; i < 12; i++) {
+      const ph = (T * .14 + i / 12 + seed) % 1;
+      const r = R * (.55 + ph * 1.7);
+      const sx = q.x + wx * ph * R * 3.6 + Math.sin(seed + i) * R * .25;
+      const sy = q.y - R * .7 - ph * R * 4.6 + wy * ph * R * 1.6;
+      const c = Math.round(70 + ph * 40);
+      SmokeTex.draw(cx, i + (seed | 0), sx, sy, r, ((1 - ph) * .55 * f + .08) * Math.min(1, ph * 6), [c, c - 4, c - 8], wa + i * 1.3 + T * .05 * (i % 2 ? 1 : -1), 1 + ph * .5);
     }
-    cx.restore();
     cx.save();
     cx.globalCompositeOperation = 'lighter';
     /* зарево на земле */

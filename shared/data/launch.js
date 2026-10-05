@@ -28,7 +28,7 @@ const LAUNCH = {
     night: { fpv: 600, mother: 900, kab: 1500, drone: 900, decoy: 900, loiter: 900, jet: 1200, arm: 1200, recon: 900, ewuav: 1200, cruise: 10800, ballistic: 1800, aeroball: 3600 },
     day: { fpv: 240, mother: 240, kab: 300, drone: 240, decoy: 240, loiter: 240, jet: 300, arm: 300, recon: 240, ewuav: 300, cruise: 2700, ballistic: 600, aeroball: 1800 }
   },
-  nightCap: { fpv: 24, ulei: 4, plita: 12, drones: 50, strizh: 4, grach: 4, sova: 3, vual: 1, krechet: 6, albatros: 8, molot: 3, garpia: 1 }
+  nightCap: { fpv: 24, ulei: 4, plita: 8, drones: 50, strizh: 4, grach: 4, sova: 3, vual: 1, krechet: 6, albatros: 8, molot: 3, garpia: 1 }
 };
 
 /** подписи групп лимита */

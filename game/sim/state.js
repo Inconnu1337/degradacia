@@ -67,31 +67,19 @@ function newCampaign() {
   G.hq = { x: cap.x - 6, y: cap.y - 7, n: LORE.hqName };
 
   const C = n => WD.cities.find(c => c.n === n);
-  const main = WD.rivers[0].pts, dam = nearestOn(main, { x: 225, y: 240 });
-
-  /* защищаемые объекты: имя, тип, привязка, смещение, важность */
-  const OD = [
-    ['ТЭЦ-5 «Вельград»', 'power', C('Вельград'), 5, 5, 100],
-    ['ПС «Северная», 750 кВ', 'sub', C('Вельград'), 10, -16, 96],
-    ['ГЭС «Вельна»', 'dam', { x: dam.x, y: dam.y }, 0, 0, 92],
-    ['Ставненская ТЭС', 'power', C('Ставна'), -9, 11, 86],
-    ['Морской порт Солемар', 'port', C('Солемар'), 5, 3, 82],
-    ['НПЗ «Тарновец»', 'oil', C('Тарновец'), -7, 8, 80],
-    ['Авиабаза «Лисова»', 'air', C('Лисова'), 10, 6, 84],
-    ['Железнодорожный узел Кремнев', 'rail', C('Кремнев'), 4, 4, 72],
-    ['Машзавод «Кремень»', 'plant', C('Вельград'), -10, 8, 76],
-    ['ПС «Западная», 330 кВ', 'sub', C('Дарень'), 7, -7, 70],
-    ['Водозабор «Лозовский»', 'water', C('Лисова'), -8, -6, 58]
-  ];
-  OD.forEach((d, i) => {
-    const p = nudgeOwn({ x: d[2].x + d[3], y: d[2].y + d[4] });
-    G.objs.push({ id: 'o' + i, n: d[0], type: d[1], x: p.x, y: p.y, v: d[5], hp: 100, hitT: -1e9, rep: false, city: nearCity(p) });
+  /* защищаемые объекты (площадки и подъезды к ним — shared/data/objects.js, shared/world.js) */
+  objectSites().forEach((d, i) => {
+    G.objs.push({ id: 'o' + i, n: d.n, type: d.type, x: d.x, y: d.y, v: d.v, hp: 100, hitT: -1e9, rep: false, city: nearCity(d) });
   });
 
   /* стартовая группировка: она уже стоит на позициях */
   const O = i => G.objs[i];
   const at = (o, dx, dy) => nudgeOwn({ x: o.x + dx, y: o.y + dy });
-  const put = (k, p) => addUnit(k, p.x, p.y, true);
+  /* тяжёлая техника стартует у дороги, чтобы не стоять в поле без выезда */
+  const put = (k, p) => {
+    if (HEAVY_UNITS.includes(k)) { const rd = roadDist(p); if (rd.p && rd.d > ROAD_REACH) p = nudgeOwn({ x: rd.p.x + (p.x - rd.p.x) / rd.d * 1.2, y: rd.p.y + (p.y - rd.p.y) / rd.d * 1.2 }) }
+    return addUnit(k, p.x, p.y, true);
+  };
 
   put('bastion', at(O(0), 7, -8));
   put('shield', at(O(1), -7, 6));

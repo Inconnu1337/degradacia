@@ -81,10 +81,13 @@ function renderTerrain() {
 
   /* дороги */
   for (const r of WD.roads) {
-    g.strokeStyle = r.main ? 'rgba(122,106,74,.85)' : 'rgba(92,84,62,.7)';
-    g.lineWidth = r.main ? .6 : .42;
+    /* грунтовка — тонкий пунктир, подъезд к объекту — как второстепенная дорога */
+    g.strokeStyle = r.main ? 'rgba(122,106,74,.85)' : r.dirt ? 'rgba(112,100,72,.75)' : 'rgba(92,84,62,.7)';
+    g.lineWidth = r.main ? .6 : r.dirt ? .32 : .42;
+    g.setLineDash(r.dirt ? [.9, .55] : []);
     g.beginPath(); r.pts.forEach((p, i) => i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)); g.stroke();
   }
+  g.setLineDash([]);
   /* реки */
   for (const r of WD.rivers) {
     g.strokeStyle = '#10313f'; g.lineWidth = r.w + .55;

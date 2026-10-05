@@ -93,8 +93,10 @@ let REAL_MS = 0;
 const TIME = {
   last: { def: -1e9, atk: -1e9 },
   pauses: { def: TIME_RULES.pausesPerNight, atk: TIME_RULES.pausesPerNight },
-  /** текущая пауза: { by, at, resume } */
-  pause: null
+  /** текущая пауза: { by, at, resume, long } */
+  pause: null,
+  /** кто предложил бессрочную паузу (нужно согласие обеих сторон) */
+  longAsk: { def: false, atk: false }
 };
 
 /** авто-темп: замедлять при появлении целей, запросах, баллистике */
@@ -120,7 +122,29 @@ function setSpeed(s, why) {
 function resetSpeed(s) {
   SPEED = s; G.speed = s;
   TIME.pause = null;
+  TIME.longAsk = { def: false, atk: false };
   for (const r in TIME.pauses) { TIME.pauses[r] = TIME_RULES.pausesPerNight; TIME.last[r] = -1e9 }
+}
+
+/**
+ * бессрочная пауза: сторона предлагает (v = true) или отзывает предложение.
+ * Когда согласны обе — время стоит, пока любая не пустит его снова.
+ * Пауз из лимита не тратит. В одиночной игре — просто пауза.
+ */
+function requestLongPause(role, v) {
+  if (G.phase !== 'night') return 'время идёт только ночью';
+  if (!multiplayer()) { SPEED = 0; return null }
+  if (TIME.pause && TIME.pause.long) return null;
+  TIME.longAsk[role] = !!v;
+  const other = MODE.humans.find(r => r !== role);
+  if (!v) { emit(other, { e: 'toast', t: `${SIDE_LABEL[role]} отзывает предложение бессрочной паузы`, c: 'i' }); return null }
+  if (TIME.longAsk[other]) {
+    TIME.pause = { by: 'both', at: REAL_MS, resume: SPEED || 15, long: true };
+    SPEED = 0;
+    TIME.longAsk = { def: false, atk: false };
+    emit('*', { e: 'toast', t: 'Бессрочная пауза: обе стороны согласны. Время пустит любая сторона.', c: 'i' });
+  } else emit(other, { e: 'toast', t: `${SIDE_LABEL[role]} предлагает бессрочную паузу — кнопка «∞» вверху`, c: 'i' });
+  return null;
 }
 
 /** просьба стороны сменить скорость; возвращает текст отказа или null */
@@ -131,8 +155,9 @@ function requestSpeed(role, v) {
     const wait = TIME.last[role] + TIME_RULES.cooldownMs - REAL_MS;
     if (wait > 0) return `слишком часто: ещё ${Math.ceil(wait / 1000)} с`;
     const p = TIME.pause;
+    if (v === 0 && p && p.long) return null;
     if (v === 0 && TIME.pauses[role] <= 0) return 'паузы на эту ночь кончились';
-    if (v > 0 && p && p.by !== role && REAL_MS - p.at < TIME_RULES.pauseHoldMs)
+    if (v > 0 && p && !p.long && p.by !== role && REAL_MS - p.at < TIME_RULES.pauseHoldMs)
       return `пауза ${SIDE_LABEL[p.by]}: снять можно через ${Math.ceil((p.at + TIME_RULES.pauseHoldMs - REAL_MS) / 1000)} с`;
     TIME.last[role] = REAL_MS;
     const other = MODE.humans.find(r => r !== role);
@@ -141,6 +166,7 @@ function requestSpeed(role, v) {
       TIME.pause = { by: role, at: REAL_MS, resume: SPEED || 15 };
       emit(other, { e: 'toast', t: `${SIDE_LABEL[role]} ставит паузу (до ${TIME_RULES.pauseMaxMs / 1000} с)`, c: 'i' });
     } else {
+      TIME.longAsk = { def: false, atk: false };
       if (TIME.pause) emit(other, { e: 'toast', t: `${SIDE_LABEL[role]} снимает паузу`, c: 'i' });
       else if (v > SPEED) emit(other, { e: 'toast', t: `${SIDE_LABEL[role]} ускоряет время: ×${v}`, c: 'i' });
       TIME.pause = null;
@@ -154,7 +180,7 @@ function requestSpeed(role, v) {
 function clockTick(dtms) {
   REAL_MS += dtms;
   const p = TIME.pause;
-  if (p && SPEED === 0 && REAL_MS - p.at >= TIME_RULES.pauseMaxMs) {
+  if (p && !p.long && SPEED === 0 && REAL_MS - p.at >= TIME_RULES.pauseMaxMs) {
     SPEED = p.resume;
     TIME.pause = null;
     emit('*', { e: 'toast', t: 'Пауза истекла, время пошло', c: 'i' });
@@ -171,6 +197,9 @@ function timeView(role) {
     pauses: TIME.pauses[role], pausesMax: TIME_RULES.pausesPerNight,
     pauseBy: p ? p.by : null,
     pauseLeft: p ? Math.max(0, p.at + TIME_RULES.pauseMaxMs - REAL_MS) : 0,
-    holdLeft: p && p.by !== role ? Math.max(0, p.at + TIME_RULES.pauseHoldMs - REAL_MS) : 0
+    holdLeft: p && !p.long && p.by !== role ? Math.max(0, p.at + TIME_RULES.pauseHoldMs - REAL_MS) : 0,
+    long: !!(p && p.long),
+    longMine: !!TIME.longAsk[role],
+    longTheirs: !!TIME.longAsk[MODE.humans.find(r => r !== role)]
   };
 }

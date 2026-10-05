@@ -74,6 +74,26 @@ function riverPath(x0, y0, tx, ty, s, join) {
   return pts;
 }
 
+/** извилистая дорога из a в b: n отрезков, отклонение до amp км (от зерна) */
+function bendy(a, b, n, amp, seed) {
+  const L = dist(a, b) || 1, nx = -(b.y - a.y) / L, ny = (b.x - a.x) / L, pts = [];
+  for (let q = 0; q <= n; q++) {
+    const t = q / n, o = (q && q < n) ? (fbm(seed * .13 + t * 2.7, seed * .07, 91, 2) - .5) * amp * 2 * Math.sin(Math.PI * t) : 0;
+    pts.push({ x: a.x + (b.x - a.x) * t + nx * o, y: a.y + (b.y - a.y) * t + ny * o });
+  }
+  return pts;
+}
+
+/** площадки защищаемых объектов: { n, type, x, y, v } (данные — OBJ_SITES) */
+function objectSites() {
+  const dam = nearestOn(WD.rivers[0].pts, { x: 225, y: 240 });
+  return OBJ_SITES.map(([n, type, at, dx, dy, v]) => {
+    const c = at === 'dam' ? dam : WD.cities.find(x => x.n === at);
+    const p = nudgeOwn({ x: c.x + dx, y: c.y + dy });
+    return { n, type, x: p.x, y: p.y, v };
+  });
+}
+
 function nearestOn(pts, p) {
   let b = pts[0], bd = 1e9;
   for (const q of pts) { const d = Math.hypot(q.x - p.x, q.y - p.y); if (d < bd) { bd = d; b = q } }
@@ -138,6 +158,29 @@ function buildWorld() {
   for (let i = 0; i < 260; i++) {
     const x = sr() * WW, y = sr() * WH;
     if (side(x, y) === 1) WD.villages.push({ x, y, s: .4 + sr() * .8 });
+  }
+
+  /* подъезды: от каждого объекта к ближайшей трассе — промышленная площадка без дороги не бывает */
+  for (const o of objectSites()) {
+    const rd = roadDist(o);
+    if (rd.p && rd.d > .8) WD.roads.push({ pts: bendy(o, rd.p, 6, 3, o.x), main: false, spur: 1 });
+  }
+  /* грунтовки: деревни подальше от трасс соединены с ними просёлком.
+     Тяжёлая техника по ним проходит, поэтому до обжитого места почти всегда есть подъезд. */
+  /* сеть растёт от трасс: каждый раз подключаем деревню, ближайшую к уже построенным дорогам */
+  const left = WD.villages.map(v => ({ v, ...roadDist(v) }));
+  for (let guard = 0; guard < left.length; guard++) {
+    let bi = -1;
+    for (let i = 0; i < left.length; i++) if (left[i].d >= 3 && (bi < 0 || left[i].d < left[bi].d)) bi = i;
+    if (bi < 0 || left[bi].d > 45) break;
+    const { v, p } = left.splice(bi, 1)[0];
+    const pts = bendy(v, p, Math.max(3, Math.round(dist(v, p) / 2.5)), 2.5, v.x + v.y);
+    WD.roads.push({ pts, main: false, dirt: 1 });
+    /* новая грунтовка — тоже дорога: пересчитываем расстояния только до неё */
+    for (const o of left) for (let i = 1; i < pts.length; i++) {
+      const s = segDist(o.v, pts[i - 1], pts[i]);
+      if (s.d < o.d) { o.d = s.d; o.p = s.p }
+    }
   }
   const lineHubs = [cs[0], cs[1], cs[3], cs[4], cs[7], cs[2], cs[9]];
   for (let i = 1; i < lineHubs.length; i++) {

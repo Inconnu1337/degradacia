@@ -76,13 +76,10 @@ function drawScorch(s) {
     if (!onScreen(q, 60)) continue;
     const R = clamp(s * .8 * b.pw, 4, 26), a = (1 - age) * .75;
     cx.save(); cx.translate(q.x, q.y);
-    /* неровное пятно: несколько эллипсов вокруг центра */
-    for (let k = 0; k < 5; k++) {
-      const an = hash(b.seed, k) * 6.28, d = R * .35 * hash(k, b.seed);
-      const g = cx.createRadialGradient(Math.cos(an) * d, Math.sin(an) * d, 0, Math.cos(an) * d, Math.sin(an) * d, R * (.7 + .5 * hash(b.seed, k + 9)));
-      g.addColorStop(0, `rgba(14,11,9,${a * .55})`); g.addColorStop(.6, `rgba(26,20,15,${a * .3})`); g.addColorStop(1, 'rgba(26,20,15,0)');
-      cx.fillStyle = g; cx.beginPath(); cx.arc(Math.cos(an) * d, Math.sin(an) * d, R * 1.2, 0, 7); cx.fill();
-    }
+    /* неровное пятно гари: два рваных клуба тёмного цвета и плотное ядро воронки */
+    SmokeTex.draw(cx, b.seed | 0, 0, 0, R * 1.5, a * .7, [22, 17, 13], hash(b.seed, 1) * 6.28, 1.25);
+    SmokeTex.draw(cx, (b.seed | 0) + 3, R * .15, -R * .1, R * 1.1, a * .6, [14, 11, 9], hash(b.seed, 2) * 6.28, 1.1);
+    SmokeTex.draw(cx, (b.seed | 0) + 1, 0, 0, R * .55, a * .8, [8, 6, 5], hash(b.seed, 3) * 6.28, 1);
     /* тлеющие угли в первые минуты */
     if (age < .12) {
       cx.globalCompositeOperation = 'lighter';
@@ -116,26 +113,24 @@ function drawSmoke(s) {
       const fk = (1 - age / .2) * (.7 + .3 * Math.sin(T * 7 + b.seed));
       cx.save(); cx.globalCompositeOperation = 'lighter';
       const g = cx.createRadialGradient(q.x, q.y - R * .3, 0, q.x, q.y - R * .3, R * 2.2);
-      g.addColorStop(0, `rgba(255,120,40,${.35 * fk})`); g.addColorStop(1, 'rgba(255,80,20,0)');
+      g.addColorStop(0, `rgba(255,120,40,${.22 * fk})`); g.addColorStop(1, 'rgba(255,80,20,0)');
       cx.fillStyle = g; cx.beginPath(); cx.arc(q.x, q.y - R * .3, R * 2.2, 0, 7); cx.fill();
       cx.restore();
     }
     /* шлейф длиннее со временем, пока не вытянется по ветру */
     const L = R * (b.air ? 4 : 9) * clamp(.25 + age * 3, .25, 1);
-    const N = b.air ? 6 : 11;
+    const N = b.air ? 7 : 14;
+    const wa = Math.atan2(w.y, w.x);
     for (let k = 0; k < N; k++) {
       const ph = (T * (b.air ? .09 : .05) + k / N + hash(b.seed, k) * .1) % 1;
       const r = R * (.6 + ph * 2.4) * (.8 + .4 * hash(b.seed, k + 3));
       const wob = Math.sin(T * .4 + k * 1.7 + b.seed) * R * .35 * ph;
       const sx = q.x + w.x * ph * L - w.y * wob, sy = q.y + w.y * ph * L + w.x * wob - ph * R * .8;
-      const a = dens * (1 - ph) * (.55 + .45 * hash(k, b.seed));
+      /* клуб рождается у земли (плавно проявляется) и тает по мере подъёма */
+      const a = dens * (1 - ph) * Math.min(1, ph * 5 + .2) * (.75 + .45 * hash(k, b.seed));
       if (a < .01) continue;
-      const g = cx.createRadialGradient(sx, sy, 0, sx, sy, r);
-      g.addColorStop(0, `rgba(${cr},${cg},${cb},${a})`);
-      g.addColorStop(.55, `rgba(${cr},${cg},${cb},${a * .55})`);
-      g.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
-      cx.fillStyle = g;
-      cx.fillRect(sx - r, sy - r, r * 2, r * 2);
+      /* каждый клуб чуть вытянут по ветру и медленно поворачивается */
+      SmokeTex.draw(cx, k + (b.seed | 0), sx, sy, r * 1.25, a, [cr, cg, cb], wa + hash(b.seed, k) * 6.28 + T * .04 * (k % 2 ? 1 : -1), 1 + ph * .6);
     }
   }
 }
@@ -168,11 +163,9 @@ function drawBoom(f, k, s) {
     const bx = a.x + Math.cos(an) * d, by = a.y + Math.sin(an) * d - grow * R0 * .25 * hash(f.y, i);
     const r = R0 * (.3 + .55 * grow) * (.6 + .5 * hash(i + 7, f.y));
     if (heat <= 0) break;
-    const g = cx.createRadialGradient(bx, by, 0, bx, by, r);
-    g.addColorStop(0, `rgba(255,${Math.round(200 + 55 * heat)},${Math.round(120 + 120 * heat)},${.9 * heat})`);
-    g.addColorStop(.45, `rgba(255,${Math.round(110 + 60 * heat)},30,${.6 * heat})`);
-    g.addColorStop(1, 'rgba(160,40,10,0)');
-    cx.fillStyle = g; cx.beginPath(); cx.arc(bx, by, r, 0, 7); cx.fill();
+    /* ядро — горячее и светлое, края клуба — оранжево-красные, форма рваная */
+    SmokeTex.draw(cx, i + 2, bx, by, r * 1.3, .85 * heat, [255, Math.round(110 + 70 * heat), Math.round(30 + 40 * heat)], an + k * 2, 1.1);
+    SmokeTex.draw(cx, i + 4, bx, by, r * .75, .8 * heat * heat, [255, Math.round(215 + 40 * heat), Math.round(150 + 90 * heat)], -an, 1);
   }
   /* обломки и искры: разлёт с торможением, остывают */
   if (k < .55) {
@@ -198,9 +191,7 @@ function drawBoom(f, k, s) {
       const an = hash(i + 3, f.x) * 6.28, d = R0 * .5 * hash(f.y, i + 3);
       const bx = a.x + Math.cos(an) * d, by = a.y + Math.sin(an) * d - sk * R0 * .6;
       const r = R0 * (.5 + .7 * sk) * (.7 + .4 * hash(i, f.y + 2));
-      const g = cx.createRadialGradient(bx, by, 0, bx, by, r);
-      g.addColorStop(0, `rgba(30,26,24,${sa})`); g.addColorStop(1, 'rgba(30,26,24,0)');
-      cx.fillStyle = g; cx.beginPath(); cx.arc(bx, by, r, 0, 7); cx.fill();
+      SmokeTex.draw(cx, i, bx, by, r * 1.3, sa, [44, 38, 34], an + sk, 1.15);
     }
   }
   /* ударная волна: тонкое кольцо, быстро уходит */
@@ -234,11 +225,10 @@ function drawAirBurst(f, k, s) {
   }
   cx.restore();
   /* клуб серого дыма */
-  const sk = clamp(k / .3, 0, 1), sa = (1 - k) * .55;
+  const sk = clamp(k / .3, 0, 1), sa = (1 - k) * .7;
   const r = R0 * (.4 + .8 * sk);
-  const g = cx.createRadialGradient(a.x, a.y, 0, a.x, a.y, r);
-  g.addColorStop(0, `rgba(70,68,66,${sa})`); g.addColorStop(.6, `rgba(70,68,66,${sa * .5})`); g.addColorStop(1, 'rgba(70,68,66,0)');
-  cx.fillStyle = g; cx.beginPath(); cx.arc(a.x, a.y, r, 0, 7); cx.fill();
+  SmokeTex.draw(cx, (f.x * 7) | 0, a.x, a.y, r * 1.3, sa, [96, 94, 92], f.y + k, 1.1);
+  SmokeTex.draw(cx, (f.y * 7) | 0, a.x + r * .3, a.y - r * .2, r * .9, sa * .7, [120, 118, 116], f.x - k, 1.2);
 }
 
 /* ---------- следы двигателей ---------- */
@@ -276,37 +266,35 @@ function updateTrails() {
 function drawTrails(s) {
   blastReset();
   updateTrails();
-  cx.save();
-  cx.lineCap = 'round'; cx.lineJoin = 'round';
+  const T = GANIM;
   for (const tr of TRAILS.values()) {
     const P = tr.pts;
     if (P.length < 2) continue;
     const fade = 1 - (tr.gone || 0) / 90;
     const n = P.length;
-    let prev = w2s(P[0]);
-    for (let i = 1; i < n; i++) {
-      const q = w2s(P[i]), t = i / (n - 1);
-      /* у хвоста тонко и прозрачно, у ракеты плотнее; след слегка расплывается со временем */
-      if (tr.high) {
-        cx.strokeStyle = `rgba(232,238,245,${(.05 + .4 * t) * fade})`;
-        cx.lineWidth = clamp(s * .35, 1, 3) + (1 - t) * clamp(s * .5, 1, 5);
-      } else {
-        cx.strokeStyle = `rgba(170,168,165,${(.03 + .32 * t) * fade})`;
-        cx.lineWidth = clamp(s * .25, .8, 2.4) + (1 - t) * clamp(s * .6, 1, 6);
-      }
-      cx.beginPath(); cx.moveTo(prev.x, prev.y); cx.lineTo(q.x, q.y); cx.stroke();
-      prev = q;
+    const w = clamp(s * (tr.high ? .5 : .4), 1.2, 6);
+    /* след — цепочка рваных клубов, вытянутых вдоль пути: у ракеты узкий и плотный,
+       к хвосту расплывается, светлеет и тает. Высотный — белый инверсионный. */
+    for (let i = 0; i < n - 1; i++) {
+      const a = w2s(P[i]), b = w2s(P[i + 1]), t = i / (n - 1);
+      const ang = Math.atan2(b.y - a.y, b.x - a.x), len = Math.hypot(b.x - a.x, b.y - a.y);
+      const r = w * (1 + (1 - t) * 2.2) + len * .35;
+      const al = (.06 + .5 * t) * fade * (tr.high ? .8 : .65);
+      const c = tr.high ? [236, 240, 246] : [Math.round(150 + 40 * (1 - t)), Math.round(148 + 40 * (1 - t)), Math.round(145 + 40 * (1 - t))];
+      /* медленное расплывание: клуб чуть дрейфует от оси */
+      const dr = (1 - t) * w * .8 * Math.sin(T * .3 + i * 1.7);
+      SmokeTex.draw(cx, i, (a.x + b.x) / 2 - Math.sin(ang) * dr, (a.y + b.y) / 2 + Math.cos(ang) * dr, r, al, c, ang, clamp(len / r, 1, 2.6));
     }
     /* горячий выхлоп у самой ракеты */
     if (!tr.gone) {
       const a = w2s(P[n - 1]), b = w2s(P[Math.max(0, n - 3)]);
+      cx.save();
       cx.globalCompositeOperation = 'lighter';
       const g = cx.createLinearGradient(a.x, a.y, b.x, b.y);
       g.addColorStop(0, 'rgba(255,190,110,.55)'); g.addColorStop(1, 'rgba(255,120,40,0)');
       cx.strokeStyle = g; cx.lineWidth = clamp(s * .5, 1.2, 3.5);
       cx.beginPath(); cx.moveTo(a.x, a.y); cx.lineTo(b.x, b.y); cx.stroke();
-      cx.globalCompositeOperation = 'source-over';
+      cx.restore();
     }
   }
-  cx.restore();
 }

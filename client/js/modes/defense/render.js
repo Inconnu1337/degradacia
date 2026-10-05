@@ -104,7 +104,8 @@ const DefenseRender = (() => {
       cx.lineWidth = 1.4;
       cx.beginPath(); cx.moveTo(q.x, q.y); cx.lineTo(q.x + th.hx * len, q.y + th.hy * len); cx.stroke();
       const sel = G.sel && G.sel.type === 't' && G.sel.id === th.id;
-      if (th.vis && G.t - th.seen < 8 && (AIM_CLS[th.cls] || sel || G.showRoutes)) drawAimGuess(th, q, s, sel);
+      /* прогноз — кнопка «Прогноз» (V); у выбранной цели виден всегда */
+      if (th.vis && G.t - th.seen < 8 && (sel || (G.showAim !== false && (AIM_CLS[th.cls] || G.showRoutes)))) drawAimGuess(th, q, s, sel);
     }
   }
 

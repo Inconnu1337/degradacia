@@ -31,6 +31,29 @@ function hideModal() { $('#modal').classList.remove('on') }
 
 const modalOpen = () => $('#modal').classList.contains('on');
 
+/* ---------- панели: не перерисовывать под нажатой кнопкой ----------
+   Панели собираются заново, когда меняется содержимое (на ×60 и ×180 —
+   почти каждый кадр). Если пересобрать панель между нажатием и
+   отпусканием кнопки, браузер клик не засчитает. Поэтому пока кнопка
+   мыши (палец) зажата внутри панели, панель стоит; после отпускания —
+   обновится на следующем кадре. */
+let PRESS = null;
+document.addEventListener('pointerdown', e => {
+  PRESS = e.target.closest && e.target.closest('#rc, #lc_obj, #lc_intel, #threatbar, #speedBox, #tabsL, #tabsR');
+}, true);
+const releasePress = () => setTimeout(() => { PRESS = null }, 0);   /* после click */
+document.addEventListener('pointerup', releasePress, true);
+document.addEventListener('pointercancel', releasePress, true);
+
+/** записать разметку в панель, если её сейчас не нажимают; false — отложено */
+function paint(el, h) {
+  if (!el) return false;
+  if (el.__h === h) return true;
+  if (PRESS && (PRESS === el || el.contains(PRESS))) return false;
+  el.innerHTML = h; el.__h = h;
+  return true;
+}
+
 /* ---------- время ---------- */
 /** просьба сменить скорость; сервер может отказать (лимиты сетевой игры) */
 function setSpeed(s) {
@@ -60,8 +83,15 @@ function speedBoxHTML(startLabel) {
       return `<button data-a="spd" data-v="${s}" class="${G.chosen === s ? 'on' : ''}" ${dis ? 'disabled' : ''} title="${title}">${s ? '×' + s : '❚❚'}</button>`;
     }).join('') + '</div>';
     if (T) {
+      /* бессрочная пауза: предложить, согласиться, отозвать */
+      const lt = T.long ? 'Бессрочная пауза. Чтобы продолжить, выберите скорость.'
+        : T.longMine ? 'Вы предложили бессрочную паузу. Ждём соперника; нажмите, чтобы отозвать.'
+          : T.longTheirs ? 'Соперник предлагает бессрочную паузу — нажмите, чтобы согласиться.'
+            : 'Предложить бессрочную паузу: начнётся, когда согласится соперник. Пауз из лимита не тратит.';
+      h += `<button class="btn sm ${T.long || T.longMine ? 'on' : ''} ${T.longTheirs && !T.long ? 'pri' : ''}" data-a="longp" data-v="${T.longMine ? 0 : 1}" ${T.long ? 'disabled' : ''} title="${lt}">∞${T.longTheirs && !T.long ? ' согласиться' : T.longMine ? ' ждём' : ''}</button>`;
       const bits = [];
-      if (T.pauseBy) bits.push(`пауза ${SIDE_SHORT[T.pauseBy]} · ${Math.ceil(T.pauseLeft / 1000)} с`);
+      if (T.long) bits.push('бессрочная пауза');
+      else if (T.pauseBy) bits.push(`пауза ${SIDE_SHORT[T.pauseBy]} · ${Math.ceil(T.pauseLeft / 1000)} с`);
       bits.push(`паузы ${T.pauses}/${T.pausesMax}`);
       if (cd > 0) bits.push(`ждать ${Math.ceil(cd / 1000)} с`);
       h += `<span class="tctl">${bits.join(' · ')}</span>`;
@@ -83,7 +113,7 @@ function speedBoxHTML(startLabel) {
 
 function renderSpeedBox(startLabel) {
   const h = speedBoxHTML(startLabel);
-  if (h !== lastSB) { $('#speedBox').innerHTML = h; lastSB = h }
+  if (h !== lastSB && paint($('#speedBox'), h)) lastSB = h;
 }
 
 /* ---------- мелкие хелперы разметки ---------- */

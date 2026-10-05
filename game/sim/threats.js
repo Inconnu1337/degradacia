@@ -37,15 +37,16 @@ function spawnThreat(q) {
 }
 
 /* ---------- КАБ: носитель над передним краем ----------
-   Один раз на пакет: если к месту сброса достаёт работающий «Щит» или
-   «Бастион», самолёт могут сбить до сброса — весь пакет пропадает. */
+   Один раз на пакет: если к месту сброса (с запасом 30 км на высоту
+   носителя) достаёт работающий «Щит» или «Бастион», самолёт могут сбить до сброса — весь пакет пропадает. */
 function carrierLost(q) {
   const g = E.groups.find(x => x.id === q.gid);
   if (g && g.carrier) return g.carrier === 'lost';
   let u = null;
   for (const v of G.units) {
     if ((v.k !== 'shield' && v.k !== 'bastion') || v.st !== 'ready' || !v.rOn || !v.am) continue;
-    if (dist(v, q) < UT[v.k].w.r + 12) { u = v; break }
+    /* самолёт идёт на высоте: ЗРК достаёт его дальше, чем низкую цель */
+    if (dist(v, q) < UT[v.k].w.r + 30) { u = v; break }
   }
   const lost = !!u && chance(u.k === 'bastion' ? .5 : .3);
   if (g) g.carrier = lost ? 'lost' : 'ok';

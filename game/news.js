@@ -60,16 +60,64 @@ const NP_DEFS = `<defs>
   <pattern id="npSky" width="4" height="4" patternUnits="userSpaceOnUse"><rect width="4" height="4" fill="${NP_PAPER}"/><rect y="1.6" width="4" height=".55" fill="${NP_INK}" opacity=".55"/></pattern>
   <linearGradient id="npFade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="1"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
   <mask id="npSkyM"><rect width="400" height="200" fill="url(#npFade)"/></mask>
+  <linearGradient id="npSmG" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#fff"/><stop offset=".55" stop-color="#fff" stop-opacity=".85"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+  <mask id="npSmM" maskContentUnits="objectBoundingBox"><rect width="1" height="1" fill="url(#npSmG)"/></mask>
 </defs>`;
 
-/** дым: клубы, растущие и сносимые ветром вправо */
+/**
+ * дым гравюрой: один клубящийся столб, а не круги. Ось изгибается по
+ * ветру вправо; ширина растёт кверху, край «бугрится» (несколько волн
+ * разной длины, слева и справа — свои); внутри — косая штриховка и
+ * линии течения, на буграх — завитки. Кверху столб тает (маска).
+ */
 function npSmoke(x, y, h, w) {
-  let out = '';
-  for (let i = 0; i < 7; i++) {
-    const k = i / 6, r = w * (.5 + k * 1.6);
-    out += `<circle cx="${_n(x + k * k * w * 5)}" cy="${_n(y - k * h)}" r="${_n(r)}" fill="url(#npX)" stroke="${NP_INK}" stroke-width=".6" opacity="${_n(.9 - k * .45)}"/>`;
+  const M = 22, ph = x * .37 + y * .11;
+  const C = k => ({ x: x + Math.pow(k, 1.5) * w * 6.5, y: y - k * h });
+  const half = (k, s) => w * (.55 + 2.3 * k) * (1 + .2 * Math.sin(k * 13 + ph + s * 2.1) + .09 * Math.sin(k * 29 + ph * 1.7 + s));
+  const L = [], R = [];
+  for (let i = 0; i <= M; i++) {
+    const k = i / M, a = C(Math.max(0, k - .02)), b = C(Math.min(1, k + .02)), c = C(k);
+    const dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy) || 1, nx = -dy / l, ny = dx / l;
+    L.push([c.x + nx * half(k, -1), c.y + ny * half(k, -1)]);
+    R.push([c.x - nx * half(k, 1), c.y - ny * half(k, 1)]);
   }
-  return out;
+  /* гладкая кривая через точки (Catmull-Rom → кубические Безье) */
+  const smooth = pts => {
+    let d = '';
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
+      d += ` C${_n(p1[0] + (p2[0] - p0[0]) / 6)} ${_n(p1[1] + (p2[1] - p0[1]) / 6)} ${_n(p2[0] - (p3[0] - p1[0]) / 6)} ${_n(p2[1] - (p3[1] - p1[1]) / 6)} ${_n(p2[0])} ${_n(p2[1])}`;
+    }
+    return d;
+  };
+  /* верхушка — три бугра от правого края к левому */
+  const tl = L[M], tr = R[M], top = C(1);
+  const bump = (p, q, k) => {
+    const mx = (p[0] + q[0]) / 2, my = (p[1] + q[1]) / 2, len = Math.hypot(q[0] - p[0], q[1] - p[1]);
+    return ` Q${_n(mx + (top.x - x) * .02)} ${_n(my - len * (.55 + .2 * Math.sin(ph + k)))} ${_n(q[0])} ${_n(q[1])}`;
+  };
+  const m1 = [tr[0] + (tl[0] - tr[0]) / 3, tr[1] + (tl[1] - tr[1]) / 3], m2 = [tr[0] + (tl[0] - tr[0]) * 2 / 3, tr[1] + (tl[1] - tr[1]) * 2 / 3];
+  const outline = `M${_n(L[0][0])} ${_n(L[0][1])}` + smooth(L)
+    + bump(tl, m2, 1) + bump(m2, m1, 2) + bump(m1, tr, 3)
+    + smooth(R.slice().reverse()) + ' Z';
+  /* линии течения: идут вдоль столба, чуть волнуясь, обрываются */
+  let flow = '';
+  for (const u of [-.55, -.2, .15, .5]) {
+    const k0 = .08 + Math.abs(u) * .2, k1 = .55 + (u + .55) * .35, pts = [];
+    for (let i = 0; i <= 10; i++) {
+      const k = k0 + (k1 - k0) * i / 10, c = C(k), hw = half(k, u);
+      pts.push([c.x + u * hw * (1 + .15 * Math.sin(k * 20 + ph + u * 4)), c.y + u * hw * .3]);
+    }
+    flow += `<path d="M${_n(pts[0][0])} ${_n(pts[0][1])}${smooth(pts)}" fill="none" stroke="${NP_INK}" stroke-width=".55" stroke-linecap="round" opacity=".7"/>`;
+  }
+  /* завитки на буграх края */
+  let curls = '';
+  for (let i = 3; i < M - 2; i += 4) {
+    const side = i % 8 < 4 ? L : R, p = side[i], c = C(i / M);
+    const ix = p[0] + (c.x - p[0]) * .3, iy = p[1] + (c.y - p[1]) * .3, r = w * (.3 + i / M);
+    curls += `<path d="M${_n(p[0])} ${_n(p[1])} Q${_n(ix)} ${_n(iy - r)} ${_n(ix + (c.x - p[0]) * .15)} ${_n(iy + r * .2)}" fill="none" stroke="${NP_INK}" stroke-width=".6" stroke-linecap="round"/>`;
+  }
+  return `<g mask="url(#npSmM)"><path d="${outline}" fill="url(#npH)" stroke="${NP_INK}" stroke-width=".85" stroke-linejoin="round"/>${flow}${curls}</g>`;
 }
 
 /** откуда на иконке объекта идёт дым (координаты сетки иконки) */

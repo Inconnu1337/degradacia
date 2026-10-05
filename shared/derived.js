@@ -69,7 +69,7 @@ function integrity() {
 /** тяжёлая техника ходит только по дорогам */
 const HEAVY_UNITS = ['shield', 'bastion', 'horizon', 'spaag', 'decoy', 'krom', 'cp'];
 /** как далеко от дороги тяжёлая техника может встать, км */
-const ROAD_REACH = 2.5;
+const ROAD_REACH = 3;
 /** точка, где расчёт уже стоял: туда он вернётся тем же путём, даже если она в поле */
 const SPOT_R = 1.5;
 

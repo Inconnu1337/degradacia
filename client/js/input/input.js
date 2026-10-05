@@ -102,6 +102,7 @@ function initInput() {
     }
     else if (k === 'enter' && MODE.input.sendPatrol && MODE.input.sendPatrol()) { /* маршрут патруля отдан */ }
     else if (k === 'z') { G.showZones = !G.showZones; uiDirty() }
+    else if (k === 'v' || k === 'м') { G.showAim = G.showAim === false; uiDirty() }
     else if (k === 'a') { if (MODE.hud.alarmBtn) cmd('alarm') }
     else if (k === 'h' || k === 'f1') { e.preventDefault(); MODE.ui.help() }
     else if (k === 'r') { G.showRoutes = !G.showRoutes }
@@ -120,6 +121,7 @@ function initInput() {
     const selU = () => G.sel && G.sel.type === 'u' ? unitById(G.sel.id) : null;
     switch (a) {
       case 'spd': setSpeed(+v); break;
+      case 'longp': cmd('longPause', { v: v === '1' }); break;
       case 'tabL': G.tabL = v; G.unread[v] = 0; tabsDirty = true; uiDirty(); break;
       case 'tabR': G.tabR = v; tabsDirty = true; lastRC = ''; uiDirty(); break;
       case 'gosq': {
@@ -144,6 +146,7 @@ function initInput() {
         break;
       }
       case 'zones': G.showZones = !G.showZones; uiDirty(); break;
+      case 'aim': G.showAim = G.showAim === false; uiDirty(); break;
       case 'help': MODE.ui.help(); break;
       case 'close': hideModal(); break;
       case 'startNight': cmd('startNight'); break;

@@ -11,6 +11,7 @@ const AttackRadio = (() => {
   function intelAt(t, txt, gr, cls, ch) {
     if (ch !== undefined && Math.random() > ch) return;
     if (cls === 'w' || cls === 'crit') (G.botIntel = G.botIntel || []).push(t);
+    if (cls === 'crit') (G.missileWarn = G.missileWarn || []).push(t);
   }
 
   function mind(txt) {

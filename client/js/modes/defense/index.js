@@ -14,7 +14,7 @@ defineMode({
     paceTitle: 'Автоматически замедлять время при появлении целей, запросах расчётов и пусках баллистики',
     zonesText: 'Зоны',
     zonesTitle: 'Показать зоны поражения и обнаружения всех расчётов (Z)',
-    alarmBtn: true, spoilBtn: true
+    alarmBtn: true, spoilBtn: true, aimBtn: true
   },
   onEnter() { G.tabR = G.tabR || 'ord' },
 

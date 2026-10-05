@@ -32,6 +32,11 @@ const COMMON_COMMANDS = {
     if (no) { toast('Время: ' + no, 'i'); return fail(no) }
     return ok();
   },
+  /** бессрочная пауза по согласию обеих сторон */
+  longPause({ v }) {
+    const no = requestLongPause(ROLE, !!v);
+    return no ? fail(no) : ok();
+  },
   autoPace({ v }) { AUTO[ROLE] = !!v; return ok() },
   startNight({ confirm }) {
     const r = MODE.checkStart(ROLE, !!confirm);

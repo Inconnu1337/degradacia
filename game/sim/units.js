@@ -21,6 +21,21 @@ function airJamMul(u) {
   return m;
 }
 
+/* ---------- ракетная опасность ----------
+   Разведка доложила о пусках ракет (сводка «crit») в последний час или сеть
+   видит в воздухе ракету / реактивную цель. Пока опасность действует,
+   ЗРК в режиме «по целеуказанию» держат РЛС включённой (низколетящую
+   крылатую иначе никто не подсветит), а дорогие ракеты берегут для ракет. */
+const MISSILE_CLS = { cruise: 1, jet: 1, arm: 1, ballistic: 1, aeroball: 1, kab: 1 };
+
+function missileAlert() {
+  if (G.alertT === G.t) return G.alertV;
+  G.alertT = G.t;
+  G.alertV = (G.missileWarn || []).some(t => t <= G.t && G.t - t < 3600)
+    || G.threats.some(th => !th.dead && MISSILE_CLS[th.cls] && th.seen > G.t - 90);
+  return G.alertV;
+}
+
 /* ---------- обнаружение и опознавание ---------- */
 function sense(dt) {
   const t = G.t, wx = G.weather;
@@ -36,6 +51,7 @@ function sense(dt) {
       else if (u.radar === 'cue') {
         const cr = Math.max(T.w ? T.w.r * 1.6 : 0, 45);
         if (G.threats.some(th => !th.dead && th.seen > t - 15 && dist(u, th) < cr)) u.rOn = true;
+        else if (T.w && T.w.kind === 'missile' && missileAlert()) u.rOn = true;
       }
     }
     if (T.fake && oper && u.radar !== 'off') u.rOn = true;
@@ -163,11 +179,21 @@ function chooseTarget(u) {
     if (th.cls === 'arm' && th.armTgt === u.id) val = Math.max(val, 1.6);
     if (u.assign === th.id) val += 4;
     if (th.cls === 'ballistic' && dist(th.path[th.path.length - 1], u) < 3) val += 2;
+    /* ракетный комплекс в первую очередь — по ракетам */
+    if (W.kind === 'missile' && DANGER[pcl] >= 3.5) val += 2;
 
     const mc = W.mc || 0;
     if (mc >= .4 && DANGER[pcl] <= 2.8 && u.assign !== th.id) {
+      const self = dist(u, th) < 6;          /* цель идёт прямо на позицию — самооборона */
+      /* по мелочи дорогой ракетой — один раз: промахнулись, пусть добивают другие */
+      if ((th.samTry || 0) >= 1 && !self) continue;
       if (u.roe === 'eco') {
+        /* ракеты в воздухе или на подлёте — дорогие ракеты только для них */
+        if (missileAlert() && !self) continue;
+        /* «Бастион» по дронам — только самозащита */
+        if (mc >= 2 && !self) continue;
         if (!(o && (o.v >= 90 || u.cover === o.id)) && th.cls !== 'recon' && th.cls !== 'ewuav') continue;
+        if (o && dist(th, o) > 15 && th.cls !== 'recon' && th.cls !== 'ewuav') continue;
         if (cheaperNear(o, th, u) && dist(th, o) > 3) continue;
       }
       if (u.am <= (W.reserve || 0)) continue;
@@ -196,6 +222,7 @@ function fire(u, th) {
     else if (chance(.25)) sayT(u, 'gmiss', 22, phr('gmiss', {}, u), 'm');
   } else {
     th.eng++;
+    if (W.mc >= .4) th.samTry = (th.samTry || 0) + 1;
     G.miss.push({ x: u.x, y: u.y, sp: W.msp, th, u, pk, t0: G.t, kind: W.kind, trail: [], maxT: W.r / W.msp * 1.7 + 15 });
     fx({ k: 'launch', x: u.x, y: u.y, d: 520, a: u.ta });
     eSawLaunch(u);
