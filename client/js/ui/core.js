@@ -97,6 +97,13 @@ function speedBoxHTML(startLabel) {
       h += `<span class="tctl">${bits.join(' · ')}</span>`;
     }
     if (G.speed === 0 && G.chosen > 0) h += '<span class="tctl bad">соперник не в сети — время стоит</span>';
+    /* перемотка до утра */
+    const K = G.skip || {};
+    if (K.on) h += '<span class="tctl">⏭ перемотка до утра…</span>';
+    else if (K.can || K.mine) {
+      const t = K.mine ? 'Ждём согласия соперника; нажмите, чтобы отозвать' : K.theirs ? 'Соперник предлагает перемотать до утра' : 'Бить больше нечем — перемотать ночь до рассвета. Всё, что в воздухе, долетит.';
+      h += `<button class="btn sm ${K.mine ? 'on' : K.theirs ? 'pri' : ''}" data-a="skipn" data-v="${K.mine ? 0 : 1}" title="${t}">⏭ ${K.mine ? 'ждём…' : K.theirs ? 'до утра — согласен' : 'до утра'}</button>`;
+    }
     return h;
   }
   if (G.phase === 'prep') {

@@ -120,7 +120,7 @@ function setSpeed(s, why) {
 
 /** новая ночь: ×15, лимиты пауз заново */
 function resetSpeed(s) {
-  SPEED = s; G.speed = s;
+  SPEED = s; G.speed = s; G.skip = false; G.skipAsk = {};
   TIME.pause = null;
   TIME.longAsk = { def: false, atk: false };
   for (const r in TIME.pauses) { TIME.pauses[r] = TIME_RULES.pausesPerNight; TIME.last[r] = -1e9 }
@@ -150,6 +150,8 @@ function requestLongPause(role, v) {
 /** просьба стороны сменить скорость; возвращает текст отказа или null */
 function requestSpeed(role, v) {
   if (G.phase !== 'night') return 'время идёт только ночью';
+  /* любая команда скорости прерывает перемотку до утра */
+  if (G.skip) { G.skip = false; SPEED = v; return null }
   if (v === SPEED) return null;
   if (multiplayer()) {
     const wait = TIME.last[role] + TIME_RULES.cooldownMs - REAL_MS;
@@ -188,7 +190,52 @@ function clockTick(dtms) {
   if (TIME.pause && SPEED !== 0) TIME.pause = null;
 }
 
+/* ---------- перемотка до утра ----------
+   Когда налёту нечем больше бить (нет ракет, баллистики и КАБ, а дронов
+   осталось на пару пакетов) — можно перемотать ночь. Против ИИ сторона
+   решает сама; в дуэли перемотку предлагает налёт, ПВО соглашается
+   (кнопку у ПВО видно только после предложения — иначе она выдавала бы,
+   что у налёта пусто). Перемотка — не прыжок: время идёт ×SKIP_SPEED,
+   всё, что в воздухе, долетает. */
+const SKIP_SPEED = 7000;
+const SKIP_HEAVY = ['krechet', 'albatros', 'molot', 'garpia', 'plita', 'strizh', 'grach'];
+
+/** у налёта нечем бить до рассвета */
+function atkSpent() {
+  const can = k => Math.max(0, Math.min(E.stock[k] || 0, capLeft(k)));
+  if (SKIP_HEAVY.some(k => can(k) > 0)) return false;
+  return ATK_KINDS.reduce((a, k) => a + can(k), 0) <= 6;
+}
+
+function canSkip(role) {
+  if (G.phase !== 'night' || G.skip) return false;
+  if (role === 'atk') return atkSpent();
+  /* ПВО против ИИ: в воздухе пусто и ИИ больше ничего не готовит */
+  if (!MODE.humans.includes('atk')) return !E.queue.length && !G.threats.some(th => !th.dead);
+  return !!(G.skipAsk && G.skipAsk.atk);
+}
+
+function requestSkip(role, v) {
+  if (!canSkip(role) && !(v === false)) return 'перемотка сейчас недоступна';
+  G.skipAsk = G.skipAsk || {};
+  G.skipAsk[role] = !!v;
+  if (!v) return null;
+  if (MODE.humans.every(r => G.skipAsk[r])) {
+    G.skip = true; G.skipAsk = {};
+    hqAll('Перемотка до утра: время идёт быстро, всё, что в воздухе, долетит.', 'hq');
+  } else {
+    const other = MODE.humans.find(r => r !== role);
+    emit(other, { e: 'toast', t: `${SIDE_LABEL[role]} предлагает перемотать до утра — кнопка «⏭» вверху`, c: 'i' });
+  }
+  return null;
+}
+
 /** что сторона знает о правилах времени (для кнопок у клиента) */
+function skipView(role) {
+  const other = MODE.humans.find(r => r !== role);
+  return { can: canSkip(role), on: !!G.skip, mine: !!(G.skipAsk && G.skipAsk[role]), theirs: !!(other && G.skipAsk && G.skipAsk[other]) };
+}
+
 function timeView(role) {
   if (!multiplayer()) return null;
   const p = TIME.pause;

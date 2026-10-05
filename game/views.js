@@ -51,7 +51,7 @@ function threatDefV(th) {
 /** свой борт глазами стороны налёта */
 function threatAtkV(th) {
   return {
-    id: th.id, k: th.k, cls: th.cls, sp: TT[th.k].sp, x: th.x, y: th.y, hx: th.hx, hy: th.hy,
+    id: th.id, gid: th.gid, k: th.k, cls: th.cls, sp: TT[th.k].sp, x: th.x, y: th.y, hx: th.hx, hy: th.hy,
     alt: th.alt, lost: th.lost, dead: false, idLv: 2, seen: th.seen, vis: !!th.vis, br: th.dropped ? 1 : 0,
     path: th.path.map(pt)
   };
@@ -89,7 +89,7 @@ function commonV(role) {
   return {
     mode: MODE.id, humans: MODE.humans, role,
     night: G.night, t: G.t, phase: G.phase, speed: G.speed, chosen: SPEED, time: timeView(role), auto: AUTO[role],
-    ready: G.ready, weather: G.weather, wind: G.wind, alarm: G.alarm,
+    ready: G.ready, skip: skipView(role), weather: G.weather, wind: G.wind, alarm: G.alarm,
     forecast: G.wxNext ? { t: G.wxNext.t, n: wxById(G.wxNext.id).n } : null,
     wxTrans: G.wxTrans ? { from: G.wxTrans.from, to: G.wxTrans.to, t0: G.wxTrans.t0, t1: G.wxTrans.t1 } : null, civTotal: G.civTotal,
     over: G.phase === 'debrief' && MODE.campaignOver(),

@@ -153,13 +153,14 @@ function atkEw(th) {
 }
 
 /* ---------- перенацеливание в полёте ----------
-   Средства с каналом связи (TT[k].retarget: «Шершень», «Стриж», «Кречет», FPV)
+   Средства с каналом связи (TT[k].retarget: «Шершень», «Стриж», «Кречет», FPV, «Улей»,
+   а «Сова» и «Вуаль» — новым маршрутом)
    можно развернуть на новую цель уже после пуска. Сеанс связи с пакетом —
    не чаще раза в RETARGET_GAP секунд; борта, потерявшие навигацию от РЭБ,
    команду не принимают. Невыпущенная часть пакета тоже уйдёт на новую цель. */
 const RETARGET_GAP = 600;
 
-function retargetGroup(id, t) {
+function retargetGroup(id, t, wpsIn) {
   const fail = error => { toast(error, 'i'); return { ok: false, error } };
   if (G.phase !== 'night') return fail('Перенацеливать можно только ночью');
   const g = E.groups.find(x => x.id === id);
@@ -167,22 +168,32 @@ function retargetGroup(id, t) {
   const T = TT[g.kind];
   if (!T.retarget) return fail(`«${T.n}» не имеет канала управления: летит по заложенной программе`);
   if (G.t - (g.retT || -1e9) < RETARGET_GAP) return fail(`Следующий сеанс связи с пакетом через ${fmtDur(RETARGET_GAP - (G.t - g.retT))}`);
+  /* разведчик и постановщик помех получают новый маршрут, ударные — новую цель (с изломами) */
+  const patrol = routeOnly(g.kind);
+  const wps = netPath(wpsIn, 8);
   let tgt = null;
-  if (t && t.obj != null) { const o = objById(String(t.obj)); if (o && o.hp > 0) tgt = { obj: o } }
+  if (patrol) {
+    if (!wps.length) return fail('Кликните новый маршрут на карте');
+    const end = wps[wps.length - 1];
+    tgt = { aim: { x: end.x, y: end.y }, patrol: 1 };
+  }
+  else if (t && t.obj != null) { const o = objById(String(t.obj)); if (o && o.hp > 0) tgt = { obj: o } }
   else if (t && t.aim) { const a = netPoint(t.aim); if (a) tgt = { aim: { x: a.x, y: a.y, uid: t.aim.uid != null ? +t.aim.uid : undefined } } }
   if (!tgt) return fail('Укажите новую цель на карте');
   const aim = aimOf(tgt);
+  const route = patrol ? wps : [...wps, aim];
   let n = 0, deaf = 0;
   for (const th of G.threats) {
     if (th.dead || th.gid !== id) continue;
     if (th.lost) { deaf++; continue }
-    if (T.range && (th.flown || 0) + dist(th, aim) > T.range) { deaf++; continue }
-    th.tgt = tgt; th.path = [{ x: aim.x, y: aim.y }]; th.retgt = 1; th.hunt = null;
+    const rng = TT[th.k].range;
+    if (rng && (th.flown || 0) + polyLen(th, route) > rng) { deaf++; continue }
+    th.tgt = tgt; th.path = route.map(p => ({ x: p.x, y: p.y })); th.retgt = 1; th.hunt = null;
     n++;
   }
-  for (const q of E.queue) if (q.gid === id) { q.tgt = tgt; q.path = [{ x: aim.x, y: aim.y }]; n++ }
+  for (const q of E.queue) if (q.gid === id) { q.tgt = tgt; q.path = route.map(p => ({ x: p.x, y: p.y })); n++ }
   if (!n) return fail(deaf ? 'Борта пакета не отвечают: РЭБ или не хватит дальности' : 'В пакете нет бортов на связи');
-  g.tgt = tgt; g.retT = G.t;
-  hq(`Перенацелено: ${n}× ${T.n} → ${tgt.obj ? '«' + tgt.obj.n + '»' : 'кв. ' + sq(aim)}.${deaf ? ' Не ответили: ' + deaf + '.' : ''}`, 'hq');
+  g.tgt = tgt; g.retT = G.t; g.path = route;
+  hq(`${patrol ? 'Новый маршрут' : 'Перенацелено'}: ${n}× ${T.n} → ${patrol ? wps.length + ' тч., до кв. ' + sq(aim) : tgt.obj ? '«' + tgt.obj.n + '»' : 'кв. ' + sq(aim)}${wps.length && !patrol ? ', изломов ' + wps.length : ''}.${deaf ? ' Не ответили: ' + deaf + '.' : ''}`, 'hq');
   return { ok: true, n };
 }

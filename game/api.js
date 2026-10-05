@@ -32,6 +32,12 @@ const COMMON_COMMANDS = {
     if (no) { toast('Время: ' + no, 'i'); return fail(no) }
     return ok();
   },
+  /** перемотать ночь до утра (условия — canSkip в core/bridge.js) */
+  skipNight({ v }) {
+    const no = requestSkip(ROLE, v !== false);
+    if (no) { toast(no, 'i'); return fail(no) }
+    return ok();
+  },
   /** бессрочная пауза по согласию обеих сторон */
   longPause({ v }) {
     const no = requestLongPause(ROLE, !!v);
@@ -75,7 +81,7 @@ globalThis.API = {
     const here = MODE.humans.every(r => PRESENT[r]);
     /* пока кого-то нет, время стоит, а реальные часы пауз — тоже */
     if (here) clockTick(dtms);
-    G.speed = here ? SPEED : 0;
+    G.speed = here ? (G.skip ? SKIP_SPEED : SPEED) : 0;
     if (!G.speed) { __acc = 0; return }
     __acc += Math.min(dtms, 250) / 1000 * G.speed;
     /* ограничиваем число шагов за тик, чтобы не подвешивать сервер */

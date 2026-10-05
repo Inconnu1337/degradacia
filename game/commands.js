@@ -125,6 +125,6 @@ const DEFENSE_COMMANDS = {
 const ATTACK_COMMANDS = {
   launch({ plan }) { return launchStrike(plan) },
   cancelg({ id }) { return cancelGroup(+id) },
-  retarget({ id, tgt }) { return retargetGroup(+id, tgt) },
+  retarget({ id, tgt, wps }) { return retargetGroup(+id, tgt, wps) },
   feint({ kind, zid, delay }) { return launchFeint({ kind, zid, delay }) }
 };

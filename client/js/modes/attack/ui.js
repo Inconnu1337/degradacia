@@ -92,7 +92,25 @@ const AttackUI = (() => {
     if (!TT[g.kind].retarget || G.phase !== 'night' || (!g.alive && g.launched >= g.n)) return '';
     const wait = g.retT != null ? 600 - (G.t - g.retT) : 0;
     const on = G.mode && G.mode.t === 'retarget' && G.mode.gid === g.id;
-    return `<button class="btn sm ${on ? 'on' : ''}" data-a="retarget" data-id="${g.id}" ${wait > 0 ? 'disabled' : ''}>${wait > 0 ? 'Связь через ' + fmtDur(wait) : 'Перенацелить'}</button>`;
+    const lab = routeOnly(g.kind) ? 'Новый маршрут' : 'Перенацелить';
+    return `<button class="btn sm ${on ? 'on' : ''}" data-a="retarget" data-id="${g.id}" ${wait > 0 ? 'disabled' : ''}>${wait > 0 ? 'Связь через ' + fmtDur(wait) : on ? 'Отмена' : lab}</button>`;
+  }
+
+  /** карточка выбранного своего борта: что, куда, и — если есть связь — перенацелить */
+  function threatCard() {
+    if (!G.sel || G.sel.type !== 't') return '';
+    const th = thrById(G.sel.id);
+    if (!th) return '';
+    const T = TT[th.k], g = E.groups.find(x => x.id === th.gid);
+    const end = th.path && th.path[th.path.length - 1];
+    const eta = end ? polyLen(th, th.path) / (T.sp || 1) : 0;
+    const where = !g || !g.tgt ? '' : g.tgt.patrol ? 'маршрут, ' + (th.path || []).length + ' тч.' : g.tgt.obj ? '«' + g.tgt.obj.n + '»' : 'кв. ' + sq(g.tgt.aim);
+    let h = `<div class="shop gift"><div class="row"><b>${esc(T.n)}</b><span class="mu">${esc(CLS_N[th.cls])}</span></div>`;
+    h += `<div class="row mu"><span>${th.lost ? '<span class="bad">потерял навигацию</span>' : where ? 'Курс: ' + esc(where) : ''}</span><span>${end && !th.lost ? 'ещё ' + fmtDur(eta) : ''}</span></div>`;
+    if (g) h += `<div class="row mu"><span>Пакет: ${g.n}× · в воздухе ${g.alive}</span><span>${th.alt === 'high' ? 'высоко' : th.alt === 'mid' ? 'средняя высота' : 'малая высота'}</span></div>`;
+    if (!T.retarget) h += '<p class="mu">Канала управления нет: летит по заложенной программе.</p>';
+    else if (g) h += `<div class="acts">${retargetBtn(g)}</div><p class="mu">${routeOnly(g.kind) ? 'Новый маршрут получит весь пакет.' : 'Новую цель получит весь пакет, включая ещё не выпущенные борта.'} Сеанс связи — не чаще раза в 10 минут.</p>`;
+    return h + '</div>';
   }
 
   /** ложная активность: носители поднимаются, разведка ПВО это видит, но пусков нет */
@@ -113,7 +131,7 @@ const AttackUI = (() => {
   function renderRight() {
     const p = ensurePlan();
     syncZone();
-    let h = '';
+    let h = threatCard();
     if (G.tabR === 'plan') {
       const gs = E.groups.filter(g => g.n > g.launched || G.t - (g.launch || 0) < 7200);
       h += '<div class="hint">Собранные пакеты. Снять можно то, что ещё не вышло в воздух.</div>';
@@ -210,6 +228,8 @@ const AttackUI = (() => {
   <li>«Мотыльки» жгут их ракеты. «Сова» и излучающие РЛС вскрывают позиции. «Молот» и «Грач» бьют по контактам.</li>
   <li>КАБ «Плита» сбрасывают над передним краем, она планирует до 95 км — по технике у фронта и ближним объектам. Если их «Щит» или «Бастион» стоит недалеко от фронта и излучает, самолёт могут сбить.</li>
   <li>Крылатые ракеты: «предельно низко» — скрытно, но иногда задевают рельеф; «высоко» — быстрее и точнее, но их видит вся сеть РЛС.</li>
+  <li>Клик по своему борту в небе — карточка: куда летит и когда. Средства с каналом связи («Шершень», «Стриж», «Кречет», FPV, «Улей») можно перенацелить, «Сове» и «Вуали» — дать новый маршрут: клики по карте, ПКМ или Enter — отправить.</li>
+  <li>Когда бить больше нечем (ни ракет, ни баллистики, ни КАБ, дронов — на пару пакетов), вверху появляется «⏭ до утра». В дуэли перемотку подтверждает ПВО.</li>
   <li>Неиспользованный ночной лимит наполовину переходит на следующую ночь: можно копить на большой удар.</li>
   <li>FPV «Оса» с переднего края выбивает посты наблюдения и мобильные группы, а камера вскрывает технику. Вглубь края FPV довозит «Улей»: сбрасывает рой за 20 км до цели и держит связь — собьют носитель, рой ослепнет.</li>
   <li>Попадание в жилой квартал даёт сопутствующие потери и режет очки. Цель кампании — энергосистема за ${NIGHTS_TOTAL} ночей.</li>
@@ -224,9 +244,9 @@ const AttackUI = (() => {
       if (a === 'feint') { cmd('feint', { kind: el.dataset.k, delay: p.delay }).then(() => { lastRC = ''; uiDirty() }); return }
       if (a === 'retarget') {
         const id = +el.dataset.id;
-        if (G.mode && G.mode.t === 'retarget' && G.mode.gid === id) { G.mode = null; hint('') }
-        else { G.mode = { t: 'retarget', gid: id }; hint('Новая цель пакета: клик по объекту, контакту или точке. Esc — отмена.') }
-        lastRC = ''; uiDirty(); return;
+        if (G.mode && G.mode.t === 'retarget' && G.mode.gid === id) { G.mode = null; hint(''); lastRC = ''; uiDirty() }
+        else AttackInput.startRetarget(id);
+        return;
       }
       if (a === 'weapon') {
         const wasPatrol = routeOnly(p.k);

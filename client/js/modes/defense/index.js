@@ -25,6 +25,6 @@ defineMode({
     mapClick: DefenseInput.mapClick,
     tooltip: DefenseInput.tooltip,
     onContextMenu: DefenseInput.onContextMenu,
-    sendPatrol: DefenseInput.sendPatrol
+    finish: DefenseInput.sendPatrol
   }
 });

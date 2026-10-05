@@ -8,6 +8,31 @@
 const HI_ALT_SP = 1.2;
 const LOW_CRASH = .00022;
 
+/* ---------- полёт с разворотом ----------
+   Радиус разворота по классу, км: борт не меняет курс мгновенно, а
+   поворачивает с угловой скоростью v / R. К промежуточной точке маршрута
+   не «прилипает»: за R до неё уже доворачивает на следующую — излом
+   срезается дугой, как у настоящего аппарата. На подлёте к цели
+   (последняя точка) поворот круче, а вплотную — пикирование прямо в неё,
+   чтобы не кружить вокруг. Баллистика летит по прямой. */
+const TURN_R = { drone: 1.2, decoy: 1.2, loiter: .8, jet: 2.5, recon: 1.5, ewuav: 1.8, arm: 1.5, cruise: 3, fpv: .15, mother: 1.2, kab: 4 };
+
+function flyTurning(th, step, r) {
+  while (th.path.length > 1 && dist(th, th.path[0]) < Math.max(r * .9, step)) th.path.shift();
+  const p = th.path[0];
+  if (!p) return;
+  const d = dist(th, p), last = th.path.length === 1;
+  if (last && d <= step) { th.x = p.x; th.y = p.y; th.path.shift(); return }
+  const cur = Math.atan2(th.hy, th.hx), want = Math.atan2(p.y - th.y, p.x - th.x);
+  const da = ((want - cur + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+  let w = step / r;
+  if (last && d < r * 3) w *= 1 + 3 * (1 - d / (r * 3));
+  if (last && d < r) w = Math.max(w, Math.abs(da));          /* терминальное пикирование */
+  const a = cur + Math.max(-w, Math.min(w, da));
+  th.hx = Math.cos(a); th.hy = Math.sin(a);
+  th.x += th.hx * step; th.y += th.hy * step;
+}
+
 function spawnThreat(q) {
   const T = TT[q.k];
   let alt = T.prof;
@@ -151,11 +176,15 @@ function threatsStep(dt) {
       if (MODE.onCrash) MODE.onCrash(th);
     }
 
-    let rem = T.sp * windMul(th) * (th.hiAlt ? HI_ALT_SP : 1) * dt;
-    while (rem > 0 && th.path.length) {
-      const p = th.path[0], dx = p.x - th.x, dy = p.y - th.y, d = Math.hypot(dx, dy);
-      if (d <= rem) { th.x = p.x; th.y = p.y; rem -= d; th.path.shift() }
-      else { th.hx = dx / d; th.hy = dy / d; th.x += th.hx * rem; th.y += th.hy * rem; rem = 0 }
+    const stepLen = T.sp * windMul(th) * (th.hiAlt ? HI_ALT_SP : 1) * dt;
+    if (TURN_R[th.cls]) flyTurning(th, stepLen, TURN_R[th.cls]);
+    else {
+      let rem = stepLen;
+      while (rem > 0 && th.path.length) {
+        const p = th.path[0], dx = p.x - th.x, dy = p.y - th.y, d = Math.hypot(dx, dy);
+        if (d <= rem) { th.x = p.x; th.y = p.y; rem -= d; th.path.shift() }
+        else { th.hx = dx / d; th.hy = dy / d; th.x += th.hx * rem; th.y += th.hy * rem; rem = 0 }
+      }
     }
     if (!th.path.length) impact(th);
   }

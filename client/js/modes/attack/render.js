@@ -163,6 +163,18 @@ const AttackRender = (() => {
       cx.font = '600 10px system-ui, sans-serif'; cx.textAlign = 'center'; cx.fillStyle = '#ff8f80';
       cx.fillText('ЦЕЛЬ', q.x, q.y + r + 12);
     }
+    /* новый маршрут выбранного пакета, пока его кликают */
+    const m = G.mode;
+    if (m && m.t === 'retarget') {
+      const g = E.groups.find(x => x.id === m.gid);
+      const lead = g && G.threats.find(th => th.gid === g.id && !th.dead);
+      if (lead && m.wps.length) strokePath([lead, ...m.wps], 'rgba(120,220,255,.95)', [6, 4]);
+      m.wps.forEach((w, i) => {
+        const q = w2s(w);
+        cx.fillStyle = '#78dcff'; cx.beginPath(); cx.arc(q.x, q.y, 4, 0, 7); cx.fill();
+        cx.font = '600 10px system-ui, sans-serif'; cx.textAlign = 'left'; cx.fillText(String(i + 1), q.x + 6, q.y - 6);
+      });
+    }
     if (routeOnly(p.k) || (G.mode && G.mode.t === 'route')) {
       cx.font = '600 12px system-ui, sans-serif'; cx.textAlign = 'center';
       const txt = routeOnly(p.k) ? 'Маршрут разведчика: каждый клик — точка, ПКМ — убрать' : 'Свой маршрут: клик по карте — излом, по объекту или контакту — цель. ПКМ — выйти';
