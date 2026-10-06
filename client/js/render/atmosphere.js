@@ -132,28 +132,20 @@ function grainTile() {
   return c;
 }
 
-/** «экран штаба»: виньетка, лёгкое зерно, тонкие строки развёртки */
+/** «экран штаба»: виньетка и зерно — CSS-слои #fxVig и #fxGrain (см. base.css);
+    здесь только включаем и выключаем их по настройкам и один раз кладём плитку зерна */
+let fxKey = '';
 function drawScreenFX() {
-  if (!SCREEN.vignette && !SCREEN.grain) return;
-  cx.save();
-  if (SCREEN.vignette) {
-  const v = cx.createRadialGradient(CW / 2, CH / 2, Math.min(CW, CH) * .35, CW / 2, CH / 2, Math.max(CW, CH) * .75);
-  v.addColorStop(0, 'rgba(0,0,0,0)');
-  v.addColorStop(1, 'rgba(0,0,0,.42)');
-  cx.fillStyle = v;
-  cx.fillRect(0, 0, CW, CH);
+  const key = (SCREEN.vignette ? 'v' : '') + (SCREEN.grain ? 'g' : '');
+  if (key === fxKey) return;
+  fxKey = key;
+  document.body.classList.toggle('no-vig', !SCREEN.vignette);
+  document.body.classList.toggle('no-grain', !SCREEN.grain);
+  const el = document.getElementById('fxGrain');
+  /* в jsdom (тесты) у холста нет toDataURL — там зерно не нужно */
+  if (el && SCREEN.grain && !el.style.backgroundImage && !/jsdom/i.test(navigator.userAgent)) {
+    try { el.style.backgroundImage = `url(${grainTile().toDataURL()})` } catch (e) { /* без холста */ }
   }
-  const t = SCREEN.grain ? grainTile() : null;
-  if (t && cx.createPattern) {
-    const p = cx.createPattern(t, 'repeat');
-    if (p) {
-      cx.globalAlpha = .55;
-      cx.translate((Math.random() * 96) | 0, (Math.random() * 96) | 0);
-      cx.fillStyle = p;
-      cx.fillRect(-96, -96, CW + 192, CH + 192);
-    }
-  }
-  cx.restore();
 }
 
 /* ---------- дрожь экрана от близкого разрыва ---------- */

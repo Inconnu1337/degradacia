@@ -61,6 +61,8 @@ function startPrep(first) {
   G.threats = []; G.miss = []; G.comms = []; G.reqs = []; G.intelQ = []; G.ready = {}; G.fatQ = []; G.fatT = 0; G.wxTrans = null;
   G.alarm = false; G.alarmT = 0; G.falseRun = 0;
   G.ammoDeal = 0; G.crewBonus = 0; G.offers = []; G.offerTaken = false;
+  G.dayRep = DAY_REP;
+  if (!first) G.icptPool = (G.icptPool || 0) + ICPT_POOL_DAY;
   G.alarmTrust = Math.min(1, G.alarmTrust + .25);
 
   planWeather();

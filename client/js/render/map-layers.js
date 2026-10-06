@@ -5,6 +5,37 @@
    по режимам (зоны, техника, цели, план), рисует MODE.render.
    ============================================================ */
 
+/* ---------- подложка: рельеф и ночное затемнение ----------
+   Масштабировать большую картинку рельефа и затемнять её каждый кадр
+   дорого. Пока вид не сдвинули и рассвет не продвинулся, кадр берёт
+   готовую подложку из буфера одним копированием. */
+let BASE = null, baseKey = '';
+function drawBase(s) {
+  const key = [G.view.x, G.view.y, s, CW, CH, DPR, G.phase, Math.round(dawnK() * 60), !!TER].join('|');
+  if (!BASE || BASE.width !== cv.width || BASE.height !== cv.height) { BASE = document.createElement('canvas'); BASE.width = cv.width; BASE.height = cv.height; baseKey = '' }
+  if (key !== baseKey) {
+    baseKey = key;
+    const main = cx;
+    cx = BASE.getContext('2d');
+    cx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    cx.fillStyle = '#04070a';
+    cx.fillRect(0, 0, CW, CH);
+    if (TER) {
+      cx.save();
+      cx.translate(CW / 2, CH / 2); cx.scale(s, s); cx.translate(-G.view.x, -G.view.y);
+      cx.imageSmoothingEnabled = s < 6;
+      cx.drawImage(TER, 0, 0, WW, WH);
+      cx.restore();
+    }
+    drawNightShade();
+    cx = main;
+  }
+  cx.save();
+  cx.setTransform(1, 0, 0, 1, 0, 0);
+  cx.drawImage(BASE, 0, 0);
+  cx.restore();
+}
+
 /* ---------- основной проход ---------- */
 function draw(dtms) {
   if (!G) return;
@@ -12,18 +43,7 @@ function draw(dtms) {
   if (worldRuns()) GANIM += dtms / 1000;
   const s = G.view.s;
   cx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  cx.fillStyle = '#04070a';
-  cx.fillRect(0, 0, CW, CH);
-
-  /* подложка */
-  if (TER) {
-    cx.save();
-    cx.translate(CW / 2, CH / 2); cx.scale(s, s); cx.translate(-G.view.x, -G.view.y);
-    cx.imageSmoothingEnabled = s < 6;
-    cx.drawImage(TER, 0, 0, WW, WH);
-    cx.restore();
-  }
-  drawNightShade();
+  drawBase(s);
   drawCityLights(s);
   drawGrid(s);
   drawRadarSweep(s);

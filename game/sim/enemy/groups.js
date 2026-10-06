@@ -14,7 +14,7 @@ function eGroup(kind, n, zone, tgt, o) {
   const start = zPoint(zone);
   const ball = T.cls === 'ballistic' || T.cls === 'aeroball';
   const path = ball ? [aim] : eRoute(start, aim, T.cls, o.style);
-  const ft = polyLen(start, path) / T.sp;
+  const ft = flightTime(kind, start, path, o.high);
   let launch = o.arrive != null ? o.arrive - ft : o.launch;
   launch = Math.max(G.t + (o.asap ? 25 : 240), launch);
   const g = {
@@ -25,10 +25,13 @@ function eGroup(kind, n, zone, tgt, o) {
   const spc = o.spacing != null ? o.spacing
     : (T.cls === 'drone' || T.cls === 'decoy' || T.cls === 'loiter' || T.cls === 'mother') ? R(40, 110)
       : T.cls === 'cruise' ? R(15, 40) : (T.cls === 'recon' || T.cls === 'ewuav') ? 0 : R(8, 20);
+  g.spc = spc;
+  /* «время на цели»: пускаем ровно, без большого разброса, иначе синхронность теряется */
+  const jit = o.tot ? .08 : .4;
   for (let i = 0; i < n; i++) {
     const ap = ball ? [{ x: aim.x + R(-.15, .15), y: aim.y + R(-.15, .15) }]
     : o.exact ? path.map(pt => ({ x: pt.x, y: pt.y })) : jitter(path);
-    E.queue.push({ t: launch + i * spc + R(0, spc * .4), k: kind, gid: g.id, x: start.x + R(-3, 3), y: start.y + R(-3, 3), path: ap, tgt, high: !!o.high });
+    E.queue.push({ t: launch + i * spc + R(0, spc * jit), k: kind, gid: g.id, x: start.x + R(-3, 3), y: start.y + R(-3, 3), path: ap, tgt, high: !!o.high });
   }
   E.queue.sort((a, b) => a.t - b.t);
   intelFor(g);

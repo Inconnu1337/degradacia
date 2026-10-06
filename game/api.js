@@ -67,6 +67,8 @@ const COMMON_COMMANDS = {
   }
 };
 
+const roundNum = (k, v) => typeof v === 'number' && v % 1 !== 0 ? Math.round(v * 1000) / 1000 : v;
+
 globalThis.API = {
   init(modeId) {
     activateMode(modeId);
@@ -109,11 +111,12 @@ globalThis.API = {
     } finally { ROLE = null }
   },
 
-  view(role) { return JSON.stringify(viewFor(role)) },
+  /* снимок: дробные числа — до тысячных (координаты — метры): трафик втрое меньше */
+  view(role) { return JSON.stringify(viewFor(role), roundNum) },
 
   /** полное состояние для файла сохранения (только днём) */
   save() {
-    if (G.phase !== 'prep') throw new Error('Сохранять можно днём, в фазе подготовки');
+    if (G.phase !== 'prep' && G.phase !== 'night') throw new Error('Сохранять можно днём и ночью, но не во время разбора');
     return JSON.stringify(encodeState());
   },
 

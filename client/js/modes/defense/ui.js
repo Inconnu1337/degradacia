@@ -63,6 +63,7 @@ const DefenseUI = (() => {
   <div class="row"><span>Живучесть</span><b style="color:${hpCol(hp * 100)}">${Math.round(hp * 100)}%</b></div>${bar(hp, hpCol(hp * 100))}`;
     if (W) {
       h += `<div class="row"><span>Боекомплект</span><b style="color:${u.am === 0 ? 'var(--rd)' : 'var(--tx)'}">${u.am} / ${W.am}</b></div>${bar(u.am / W.am, u.am === 0 ? 'var(--rd)' : '#6cc3ff')}`;
+      if (T.pool) h += `<div class="row mu"><span>Склад перехватчиков края</span><b class="${G.icptPool ? '' : 'bad'}">${G.icptPool}</b></div>`;
     }
     h += `<div class="row"><span>Командир</span><b>${c.trait}</b></div>
   <div class="row mu"><span>Слаженность ${pc(c.exp)}</span><span>Усталость ${pc(c.fat)}</span></div>
@@ -168,7 +169,7 @@ const DefenseUI = (() => {
       : '<div class="hint bad">Объект не прикрыт огневыми средствами.</div>';
     h += bal.length ? '<div class="hint good">Прикрыт от баллистики.</div>' : '<div class="hint mu">От баллистики не прикрыт.</div>';
     if (G.phase === 'prep' && o.hp < 100) {
-      h += `<div class="acts"><button class="btn" data-a="repair" data-id="${o.id}" ${o.rep || G.budget < repCost(o) ? 'disabled' : ''}>Ремонт +${REPAIR_HP}% · ${repCost(o)} млн</button></div>`;
+      h += `<div class="acts"><button class="btn" data-a="repair" data-id="${o.id}" ${o.rep || G.budget < repCost(o) || !G.dayRep ? 'disabled' : ''}>Ремонт +${repGain(o)}% · ${repCost(o)} млн · бригад ${G.dayRep}</button></div>`;
       if (o.rep) h += '<div class="hint mu">Ремонтная бригада уже работала здесь в эти сутки.</div>';
     }
     if (G.phase === 'night') h += nightCrewsHTML(o);
@@ -227,12 +228,12 @@ const DefenseUI = (() => {
         <p>Передано без оплаты. Нажмите и укажите точку на карте.</p>
         <button class="btn pri" data-a="buy" data-k="${k}" data-gift="1">Разместить</button></div>`;
       }
-      h += `<div class="gh">Закупка · бюджет ${Math.round(G.budget)} млн</div>`;
+      h += `<div class="gh">Закупка · бюджет ${Math.round(G.budget)} млн · склад перехватчиков ${G.icptPool}</div>`;
       if (G.phase !== 'prep') h += '<div class="hint mu">Ночью новая техника приедет на позицию не сразу: марш плюс развёртывание.</div>';
       for (const k of SHOP_ORDER) {
-        const T = UT[k], aff = G.budget >= T.cost;
+        const T = UT[k], have = T.max ? G.units.filter(u => u.k === k).length : 0, full = T.max && have >= T.max, aff = G.budget >= T.cost && !full;
         h += `<div class="shop${aff ? '' : ' poor'}">
-        <div class="row"><b>${esc(T.n)}</b><span class="ac">${T.cost} млн</span></div>
+        <div class="row"><b>${esc(T.n)}</b><span class="ac">${T.cost} млн${T.max ? ` · <span class="${full ? 'bad' : 'mu'}">${have}/${T.max}${full ? ' предел' : ''}</span>` : ''}</span></div>
         ${iconHTML(T.ic, 'shopic')}
         <p>${esc(T.d)}</p>
         <div class="row mu"><span>${T.w ? 'поражение ' + T.w.r + ' км · БК ' + T.w.am : T.radar ? 'обнаружение ' + T.radar + ' км' : T.ewr ? 'подавление ' + T.ewr + ' км' : T.eo ? 'наблюдение ' + T.eo + ' км' : 'обеспечение'}</span><span>развёртывание ${fmtDur(T.dep)}</span></div>

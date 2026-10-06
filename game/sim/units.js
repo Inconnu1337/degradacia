@@ -128,6 +128,10 @@ function pkEff(u, th) {
   /* повреждённый комплекс работает хуже */
   const T = UT[u.k];
   if (u.hp < T.hp) p *= .55 + .45 * u.hp / T.hp;
+  /* дроны-перехватчики в туман, снегопад и шторм почти слепые */
+  if (W.kind === 'drone' && !G.weather.heli) p *= .5;
+  /* своя станция РЭБ рядом глушит и канал управления перехватчиков */
+  if (W.kind === 'drone' && G.units.some(v => v.k === 'ew' && v.st === 'ready' && dist(v, u) < UT.ew.ewr)) p *= .6;
   if (W.kind === 'gun') {
     p *= G.weather.gun; if (th.alt === 'high') p *= .4; if (th.alt === 'mid') p *= .7;
     /* ствол достаёт далеко, но точно бьёт только вблизи: до 40% дальности — полная вероятность, к пределу — треть */
@@ -454,7 +458,7 @@ function unitsStep(dt) {
     }
     else if (u.st === 'air') heliStep(u, T, dt);
     else if (u.st === 'deploy' && G.t >= u.stT) { u.st = 'ready'; say(u, phr('deployed', {}, u), 'g') }
-    else if (u.st === 'reload' && G.t >= u.stT) { u.st = 'ready'; u.am = T.w.am; say(u, phr('reloaded', { am: u.am }, u), 'g') }
+    else if (u.st === 'reload' && G.t >= u.stT) { u.st = 'ready'; u.am = u.rlAm != null ? u.rlAm : T.w.am; u.rlAm = null; say(u, phr('reloaded', { am: u.am }, u), 'g') }
     else if (u.st === 'refuel' && G.t >= u.stT) {
       u.st = 'ready'; u.fuel = T.fuel; u.am = T.w.am;
       /* вертолёт с постоянной задачей сам возвращается в сектор */
@@ -486,7 +490,7 @@ function ewStep(dt) {
       const TTh = TT[th.k];
       /* FPV управляется по радиоканалу: РЭБ давит его сильно и с запасом по дальности */
       if (TTh.rc) {
-        if (dist(u, th) < T.ewr * 1.3 && chance(.012 * (1 - E.adapt.ewRes * .5) * dt)) {
+        if (dist(u, th) < T.ewr && chance(.007 * (1 - E.adapt.ewRes * .5) * dt)) {
           th.lost = true;
           th.path = [{ x: th.x + R(-.6, .6), y: th.y + R(-.6, .6) }];
           S.ew[th.k] = (S.ew[th.k] || 0) + 1;
@@ -497,7 +501,7 @@ function ewStep(dt) {
       }
       if (!TTh.gps || th.degraded) continue;
       if (dist(u, th) > T.ewr) continue;
-      if (chance(.0016 * TTh.gps * (1 - E.adapt.ewRes) * dt)) {
+      if (chance(.0011 * TTh.gps * (1 - E.adapt.ewRes) * dt)) {
         /* крылатая ракета не теряется: уходит на инерциальную навигацию и мажет сильнее */
         if (th.cls === 'cruise' || th.cls === 'kab') {
           th.degraded = true;
@@ -520,9 +524,9 @@ function ewStep(dt) {
    следует за ним. Вертолёт сам ищет «мопеды» и прочую мелочь в радиусе
    PATROL_R от центра по данным всей сети, догоняет и бьёт пулемётом,
    потом возвращается на круг. Топливо — сам на заправку и обратно. */
-const PATROL_R = 24;
+const PATROL_R = 16;
 /** маршрут патруля: до PATROL_MAX зон радиусом PATROL_RZ, облёт по кругу */
-const PATROL_RZ = 12;
+const PATROL_RZ = 9;
 
 function newPatrol(o) {
   const pts = o.pts && o.pts.length >= 2 ? o.pts.map(q => ({ x: q.x, y: q.y })) : null;

@@ -3,9 +3,8 @@
    ВОЗДУШНЫЕ ЦЕЛИ: полёт, барражирование, наведение антирадарных БпЛА, попадания.
    ============================================================ */
 
-/* профиль крылатой ракеты: высокий — быстрее и точнее, но на виду у всей сети РЛС;
-   предельно малая высота — скрытно, но шанс задеть рельеф (на км пути) */
-const HI_ALT_SP = 1.2;
+/* профиль крылатой ракеты (HI_ALT_SP — shared/data/launch.js): высокий — быстрее и точнее,
+   но на виду у всей сети РЛС; предельно малая высота — скрытно, но шанс задеть рельеф (на км пути) */
 const LOW_CRASH = .00022;
 
 /* ---------- полёт с разворотом ----------
@@ -96,7 +95,7 @@ function carrierLost(q) {
 function armSeek(th) {
   let best = null, bs = -1e9;
   for (const u of G.units) {
-    if (!u.rOn || u.hp <= 0) continue;
+    if ((!u.rOn && !(u.k === 'ew' && u.st === 'ready')) || u.hp <= 0) continue;
     const d = dist(u, th);
     if (d > 70) continue;
     const s = (UT[u.k].pw || .5) * 2 - d / 40;
@@ -360,7 +359,7 @@ function fpvSpot(th, u) {
   const k = eKnow(u);
   if (k.conf >= .85 && G.t - k.t < 120) return;
   /* макет вблизи на видео выдаёт себя — но не всегда */
-  if (u.k === 'decoy') k.type = chance(.55) ? 'decoy' : 'shield';
+  if (u.k === 'decoy') k.type = chance(.85) ? 'decoy' : 'shield';
   else k.type = u.k;
   k.conf = Math.max(k.conf, .85); k.src = 'FPV';
   setKnowPos(k, u, .25);

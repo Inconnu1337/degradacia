@@ -53,7 +53,8 @@ function threatAtkV(th) {
   return {
     id: th.id, gid: th.gid, k: th.k, cls: th.cls, sp: TT[th.k].sp, x: th.x, y: th.y, hx: th.hx, hy: th.hy,
     alt: th.alt, lost: th.lost, dead: false, idLv: 2, seen: th.seen, vis: !!th.vis, br: th.dropped ? 1 : 0,
-    path: th.path.map(pt)
+    /* ближайшие 4 точки и конечная — на карте этого достаточно, а снимок легче */
+    path: (th.path.length > 5 ? [...th.path.slice(0, 4), th.path[th.path.length - 1]] : th.path).map(pt)
   };
 }
 
@@ -78,7 +79,7 @@ function groupV(g) {
       : g.tgt.aim ? { aim: pt(g.tgt.aim), patrol: g.tgt.patrol || 0 } : null;
   return {
     id: g.id, kind: g.kind, n: g.n, zone: { id: g.zone.id, n: g.zone.n }, tgt,
-    launch: g.launch, arrive: g.arrive, launched: g.launched, lost: g.lost, hit: g.hit,
+    launch: g.launch, arrive: g.arrive, spc: g.spc || 0, launched: g.launched, lost: g.lost, hit: g.hit,
     start: pt(g.start), path: (g.path || []).map(pt), high: g.high, retT: g.retT || null,
     alive: G.threats.filter(th => th.gid === g.id && !th.dead && !th.lost).length
   };
@@ -97,12 +98,31 @@ function commonV(role) {
   };
 }
 
+/** цель глазами наблюдателя: всё как есть, без тумана войны */
+function threatSpecV(th) {
+  return {
+    ...threatAtkV(th), seen: G.t, lx: th.x, ly: th.y, vis: true, idLv: 2, idDecoy: th.cls === 'decoy',
+    eng: th.eng, armTgt: th.armTgt || null, dvis: !!th.vis
+  };
+}
+
 function viewFor(role) {
   const G2 = commonV(role);
+  if (role === 'spec') {
+    /* наблюдатель: расчёты и цели как есть, плюс картина налёта */
+    const know = {};
+    for (const id in E.know) if (E.know[id].conf >= .15) know[id] = knowV(E.know[id]);
+    Object.assign(G2, {
+      budget: G.budget, morale: G.morale, alarmT: G.alarmT, alarmTrust: G.alarmTrust, det: G.det || 0,
+      hq: G.hq, icptPool: G.icptPool || 0, dayRep: G.dayRep || 0, gifts: [], offers: [], crews: G.crews || CREWS_PER_NIGHT,
+      units: G.units.map(unitV), threats: G.threats.filter(th => !th.dead).map(threatSpecV), reqs: []
+    });
+    return { G: G2, E: { stock: E.stock, know, groups: E.groups.map(groupV), used: E.used, capBonus: E.capBonus || {}, zbook: E.zbook, feints: E.feints || [], feintUsed: E.feintUsed || {} }, S: { civ: S ? S.civ : 0 } };
+  }
   if (role === 'def') {
     Object.assign(G2, {
       budget: G.budget, morale: G.morale, alarmT: G.alarmT, alarmTrust: G.alarmTrust, det: G.det || 0,
-      hq: G.hq, gifts: G.gifts, offers: G.offers || [], offerTaken: !!G.offerTaken, warnedUncovered: G.warnedUncovered || 0, crews: G.crews || CREWS_PER_NIGHT,
+      hq: G.hq, icptPool: G.icptPool || 0, dayRep: G.dayRep || 0, gifts: G.gifts, offers: G.offers || [], offerTaken: !!G.offerTaken, warnedUncovered: G.warnedUncovered || 0, crews: G.crews || CREWS_PER_NIGHT,
       spoilable: !MODE.humans.includes('atk'),
       units: G.units.map(unitV),
       threats: G.threats.filter(th => !th.dead && G.t - th.seen <= 200).map(threatDefV),

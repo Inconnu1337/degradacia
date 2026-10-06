@@ -19,10 +19,12 @@ function initCanvas() {
 }
 
 function resizeCanvas() {
-  DPR = Math.min(2, window.devicePixelRatio || 1);
+  /* выше 1,5 разница почти не видна, а пикселей на кадр вдвое больше */
+  DPR = Math.min(1.5, window.devicePixelRatio || 1);
   CW = cv.clientWidth; CH = cv.clientHeight;
   cv.width = Math.round(CW * DPR);
   cv.height = Math.round(CH * DPR);
+  if (typeof SPRITES !== 'undefined') SPRITES.clear();
 }
 
 const w2s = p => ({ x: (p.x - G.view.x) * G.view.s + CW / 2, y: (p.y - G.view.y) * G.view.s + CH / 2 });

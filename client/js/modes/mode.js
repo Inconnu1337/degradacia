@@ -42,7 +42,7 @@ function defineMode(def) {
 }
 
 /** интерфейс стороны */
-const MODE_OF_ROLE = { def: 'defense', atk: 'attack' };
+const MODE_OF_ROLE = { def: 'defense', atk: 'attack', spec: 'spec' };
 
 function activateMode(id) {
   if (!Modes[id]) throw new Error('Неизвестный режим: ' + id);

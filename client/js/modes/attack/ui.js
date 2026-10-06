@@ -139,7 +139,7 @@ const AttackUI = (() => {
       for (const g of E.groups) {
         const where = g.tgt && g.tgt.obj ? g.tgt.obj.n : 'точка';
         h += `<div class="shop"><div class="row"><b>${g.n}× ${esc(TT[g.kind].n)}</b><span class="mu">${g.launched ? 'в воздухе ' + g.launched : clock(g.launch)}</span></div>
-        <p>${esc(g.zone.n)} → ${esc(where)}. Потерь ${g.lost || 0}, попаданий ${g.hit || 0}.</p>
+        <p>${esc(g.zone.n)} → ${esc(where)}. Над целью ≈ ${g.n > 1 ? clock(g.arrive) + '–' + clock(g.arrive + (g.n - 1) * (g.spc || 0)) : clock(g.arrive)}. Потерь ${g.lost || 0}, попаданий ${g.hit || 0}.</p>
         ${g.launched < g.n ? `<button class="btn sm warn" data-a="cancelg" data-id="${g.id}">Снять невыпущенное</button>` : ''}
         ${retargetBtn(g)}</div>`;
       }
@@ -161,14 +161,26 @@ const AttackUI = (() => {
       h += `<div class="row"><span>Цель</span><b>${esc(where)}</b></div>`;
       if (eta) h += `<div class="row mu"><span>${eta}</span><span>${p.wps.length ? p.wps.length + ' излома' : 'автомаршрут'}</span></div>`;
       const left = capLeft(p.k), pl = plannedLaunch(p);
-      const late = pl && pl.t + (p.n - 1) * pl.gap > NIGHT_LEN - 900;
+      /* «время на цели»: когда пускать, чтобы середина залпа пришла вместе с выбранным пакетом */
+      const sg = p.sync != null && !patrol ? E.groups.find(x => x.id === p.sync) : null;
+      if (p.sync != null && !sg) p.sync = null;
+      let syncT = null;
+      if (sg && pl && aim) {
+        const zn = chosenZone(), want = salvoMid(sg) + (p.syncOff || 0) * 60;
+        const path = p.preview && p.preview.length > 1 ? p.preview.slice(1) : [aim];
+        const ft = flightTime(p.k, zn, path, p.high), nn = Math.min(p.n, E.stock[p.k] || 0);
+        syncT = { want, t0: want - ft - (nn - 1) * pl.gap / 2, early: pl.t + ft + (nn - 1) * pl.gap / 2 };
+        syncT.ok = syncT.t0 >= pl.t;
+      }
+      const late = pl && (syncT ? syncT.t0 : pl.t) + (p.n - 1) * pl.gap > NIGHT_LEN - 900;
       const zoneNow = chosenZone();
       const far = T.range && aim && zoneNow && dist(zoneNow, aim) > T.range - 4;
       const grounded = (T.rc || T.brood) && !G.weather.fpv;
       if (far) h += `<div class="row"><span class="bad">Цель дальше ${T.range} км от района пуска — FPV не долетит</span></div>`;
       if (grounded) h += `<div class="row"><span class="bad">Погода нелётная для FPV</span></div>`;
-      h += `<div class="acts"><button class="btn pri" data-a="launch" ${(E.stock[p.k] || 0) < 1 || left < p.n || late || far || grounded || (patrol && !p.wps.length) ? 'disabled' : ''}>Пуск · ${Math.min(p.n, E.stock[p.k] || 0)}× ${esc(T.n)}</button></div>`;
-      if (pl) h += `<div class="row mu"><span>Первый пуск ≈ ${clock(pl.t)}${p.n > 1 ? ', последний ≈ ' + clock(pl.t + (p.n - 1) * pl.gap) : ''}</span><span>${late ? '<b class="bad">не успеть до рассвета</b>' : ''}</span></div>`;
+      h += `<div class="acts"><button class="btn pri" data-a="launch" ${(E.stock[p.k] || 0) < 1 || left < p.n || late || far || grounded || (patrol && !p.wps.length) || (syncT && !syncT.ok) ? 'disabled' : ''}>Пуск · ${Math.min(p.n, E.stock[p.k] || 0)}× ${esc(T.n)}</button></div>`;
+      if (syncT) h += `<div class="row"><span>${syncT.ok ? `Пуск ≈ ${clock(syncT.t0)}, над целью ≈ ${clock(syncT.want)}` : `<span class="bad">К ${clock(syncT.want)} не успеть: самое раннее ≈ ${clock(syncT.early)}</span>`}</span><span>${late ? '<b class="bad">не успеть до рассвета</b>' : ''}</span></div>`;
+      else if (pl) h += `<div class="row mu"><span>Первый пуск ≈ ${clock(pl.t)}${p.n > 1 ? ', последний ≈ ' + clock(pl.t + (p.n - 1) * pl.gap) : ''}${p.preview && p.preview.length > 1 && !patrol ? ' · над целью ≈ ' + clock(pl.t + flightTime(p.k, chosenZone(), p.preview.slice(1), p.high)) : ''}</span><span>${late ? '<b class="bad">не успеть до рассвета</b>' : ''}</span></div>`;
       const cb = (E.capBonus || {})[capGroup(p.k)] || 0;
       h += `<div class="row mu"><span>Подготовят за ночь: ${CAP_N[capGroup(p.k)]}${cb ? ` <span class="ac" title="Половина неиспользованного вчера лимита">(+${cb} впрок)</span>` : ''}</span><span class="${left < p.n ? 'bad' : ''}">ещё ${left}</span></div>`;
       h += '<div class="lbl">Средство</div>';
@@ -179,7 +191,7 @@ const AttackUI = (() => {
         <span class="mu">${n}</span></div>`;
       }
       h += `<div class="lbl">Залп · в наличии ${E.stock[p.k] || 0}</div><div class="acts">`;
-      for (const n of [1, 2, 4, 6, 8, 12]) {
+      for (const n of [1, 2, 4, 6, 8, 12, 16, 24]) {
         h += `<button class="btn sm ${p.n === n ? 'on' : ''}" data-a="cnt" data-v="${n}" ${Math.min(E.stock[p.k] || 0, capLeft(p.k)) < n ? 'disabled' : ''}>${n}</button>`;
       }
       h += '</div>';
@@ -188,11 +200,26 @@ const AttackUI = (() => {
         const busy = (E.zbook || {})[laneKey(p.k, z.id)] || 0;
         h += `<button class="btn sm ${p.zid === z.id ? 'on' : ''}" data-a="zid" data-v="${z.id}" title="${busy > (G.phase === 'night' ? G.t : 0) ? 'Площадки заняты до ' + clock(busy) : 'Площадки свободны'}">${esc(z.n)}${busy > (G.phase === 'night' ? G.t : 0) ? ' · до ' + clock(busy) : ''}</button>`;
       }
-      h += '</div><div class="lbl">Когда</div><div class="acts">';
+      h += `</div><div class="lbl">Когда${sg ? ' · <span class="mu">задано временем на цели</span>' : ''}</div><div class="acts">`;
       for (const [v, lab] of [[0, 'сразу'], [1, '+1 ч'], [2, '+2 ч'], [4, '+4 ч'], [6, '+6 ч']]) {
-        h += `<button class="btn sm ${p.delay === v ? 'on' : ''}" data-a="delay" data-v="${v}">${lab}</button>`;
+        h += `<button class="btn sm ${p.delay === v && !sg ? 'on' : ''}" data-a="delay" data-v="${v}" ${sg ? 'disabled' : ''}>${lab}</button>`;
       }
       h += '</div>';
+      /* комбинированный удар: прийти вместе с другим пакетом */
+      const sync = patrol ? [] : E.groups.filter(g => g.arrive > (G.phase === 'night' ? G.t : 0) + 300 && !routeOnly(g.kind));
+      if (sync.length) {
+        h += '<div class="lbl">Время на цели — прибыть вместе с пакетом</div><div class="hint">Разная скорость не мешает: пуск рассчитается так, чтобы середина залпа пришла к цели в ту же минуту. «Мопеды» уйдут раньше, ракеты позже — над целью они окажутся вместе.</div><div class="acts">';
+        for (const g of sync) {
+          const w = g.tgt && g.tgt.obj ? '«' + g.tgt.obj.n + '»' : 'точка';
+          h += `<button class="btn sm ${p.sync === g.id ? 'on' : ''}" data-a="sync" data-v="${g.id}" title="${esc(w)}">${g.n}× ${esc(TT[g.kind].n)} · ${clock(salvoMid(g))}</button>`;
+        }
+        h += '</div>';
+        if (sg) {
+          h += '<div class="acts">';
+          for (const o of SYNC_OFFS) h += `<button class="btn sm ${(p.syncOff || 0) === o ? 'on' : ''}" data-a="syncoff" data-v="${o}">${o ? (o > 0 ? '+' : '') + o + ' мин' : 'вместе'}</button>`;
+          h += '</div>';
+        }
+      }
       if (T.cls === 'drone' || T.cls === 'decoy') {
         h += `<div class="acts"><button class="btn sm ${p.high ? 'on' : ''}" data-a="high">${p.high ? 'Высота 2–3 км' : 'Бреющий'}</button></div>`;
       }
@@ -230,6 +257,8 @@ const AttackUI = (() => {
   <li>Крылатые ракеты: «предельно низко» — скрытно, но иногда задевают рельеф; «высоко» — быстрее и точнее, но их видит вся сеть РЛС.</li>
   <li>Клик по своему борту в небе — карточка: куда летит и когда. Средства с каналом связи («Шершень», «Стриж», «Кречет», FPV, «Улей») можно перенацелить, «Сове» и «Вуали» — дать новый маршрут: клики по карте, ПКМ или Enter — отправить.</li>
   <li>Когда бить больше нечем (ни ракет, ни баллистики, ни КАБ, дронов — на пару пакетов), вверху появляется «⏭ до утра». В дуэли перемотку подтверждает ПВО.</li>
+  <li>Комбинированный удар: внизу вкладки «Удар» — «Время на цели». Выберите уже запланированный пакет, и новый пакет придёт к цели в ту же минуту (или со сдвигом ±5–10 мин): пуск рассчитается по скорости, маршруту и ветру.</li>
+  <li>У каждого средства свой ночной лимит: «Жала», «Мотыльки» и «Шершни» больше не делят один на всех.</li>
   <li>Неиспользованный ночной лимит наполовину переходит на следующую ночь: можно копить на большой удар.</li>
   <li>FPV «Оса» с переднего края выбивает посты наблюдения и мобильные группы, а камера вскрывает технику. Вглубь края FPV довозит «Улей»: сбрасывает рой за 20 км до цели и держит связь — собьют носитель, рой ослепнет.</li>
   <li>Попадание в жилой квартал даёт сопутствующие потери и режет очки. Цель кампании — энергосистема за ${NIGHTS_TOTAL} ночей.</li>
@@ -265,6 +294,8 @@ const AttackUI = (() => {
         syncZone(); computePreview(); lastRC = ''; uiDirty();
       } else if (a === 'cnt') { p.n = +el.dataset.v; lastRC = ''; uiDirty(); }
       else if (a === 'delay') { p.delay = +el.dataset.v; lastRC = ''; uiDirty(); }
+      else if (a === 'sync') { const id = +el.dataset.v; p.sync = p.sync === id ? null : id; p.syncOff = 0; lastRC = ''; uiDirty(); }
+      else if (a === 'syncoff') { p.syncOff = +el.dataset.v; lastRC = ''; uiDirty(); }
       else if (a === 'zid') { p.zid = el.dataset.v; computePreview(); lastRC = ''; uiDirty(); }
       else if (a === 'high') { p.high = !p.high; lastRC = ''; uiDirty(); }
       else if (a === 'alt') { p.high = el.dataset.v === '1'; lastRC = ''; uiDirty(); }

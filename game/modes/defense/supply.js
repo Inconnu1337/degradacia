@@ -10,6 +10,7 @@ function placeUnit(k, p, gift) {
   if (G.phase !== 'prep' && G.phase !== 'night') return null;
   if (side(p.x, p.y) !== 1) { toast('Ставить можно только на своей территории', 'i'); return null }
   if (G.units.some(u => dist(u, p) < 2.2)) { toast('Слишком близко к другому расчёту', 'i'); return null }
+  if (UT[k].max && G.units.filter(u => u.k === k).length >= UT[k].max) { toast(`Больше ${UT[k].max} не положено: ${UT[k].n}`, 'i'); return null }
   /* тяжёлая техника встаёт у дороги — по тем же правилам, что и ночной марш */
   if (HEAVY_UNITS.includes(k)) { const rd = roadDist(p); if (rd.d > ROAD_REACH && rd.p) p = rd.p }
   if (gift) {
@@ -39,9 +40,10 @@ function sellUnit(u) {
 function repairObj(id) {
   const o = objById(id);
   if (!o || o.rep || G.phase !== 'prep' || G.budget < repCost(o) || o.hp >= 100) return false;
-  G.budget -= repCost(o);
-  o.hp = Math.min(100, o.hp + REPAIR_HP);
+  if ((G.dayRep || 0) <= 0) { toast('Все ремонтные бригады сегодня заняты', 'i'); return false }
+  G.budget -= repCost(o); G.dayRep--;
+  o.hp = Math.min(100, o.hp + repGain(o));
   o.rep = true;
-  hq(`Ремонтная бригада: «${esc(o.n)}» восстановлен до ${Math.round(o.hp)}%.`, 'g');
+  hq(`Ремонтная бригада: «${esc(o.n)}» восстановлен до ${Math.round(o.hp)}%.${o.hp < 50 ? ' Разрушения тяжёлые: на полное восстановление уйдут дни.' : ''}`, 'g');
   return true;
 }

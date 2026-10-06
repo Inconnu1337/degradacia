@@ -87,8 +87,12 @@ function reachable(u, p) {
 const REQ_TTL = 210;
 
 /** ремонт объекта за день: +35% состояния */
-const repCost = o => Math.round(3 + o.v * .03);
-const REPAIR_HP = 45;
+const repCost = o => Math.round(4 + o.v * .04);
+const REPAIR_HP = 30;
+/** ремонтных бригад на день: за день можно восстановить не больше стольких объектов */
+const DAY_REP = 2;
+/** сколько даст дневной ремонт: разрушенное (меньше 25%) восстанавливают вдвое медленнее */
+const repGain = o => o.hp < 25 ? REPAIR_HP / 2 : REPAIR_HP;
 /** стоимость ремонта техники днём (мгновенно) */
 const unitRepCost = u => Math.max(1, Math.round(UT[u.k].cost * .15 * (1 - u.hp / UT[u.k].hp)));
 

@@ -87,6 +87,7 @@ const Store = (() => {
   function onMessage(m) {
     switch (m.t) {
       case 'joined':
+        if (m.ver && m.ver !== GAME_VERSION) toast(`На сервере версия ${m.ver}, а у вас ${GAME_VERSION} — обновите страницу (Ctrl+F5)`, 'i');
         Game.room = m.room; Game.mode = m.mode; Game.role = m.role; Game.humans = m.humans; Game.seats = m.seats;
         G = null; E = null; S = null;
         enterGame(m);

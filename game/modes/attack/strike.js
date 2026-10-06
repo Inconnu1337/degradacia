@@ -10,7 +10,7 @@
    ============================================================ */
 
 const STRIKE_DELAYS = [0, 1, 2, 4, 6];
-const STRIKE_COUNTS = [1, 2, 4, 6, 8, 12];
+const STRIKE_COUNTS = [1, 2, 4, 6, 8, 12, 16, 24];
 
 /** точка из сети: только конечные числа в пределах карты */
 function netPoint(p) {
@@ -65,11 +65,8 @@ function launchStrike(p) {
   const left = capLeft(k);
   if (left <= 0) return fail(`Расчёты за эту ночь больше не подготовят: ${CAP_N[capGroup(k)]}`);
   if (n > left) return fail(`За эту ночь подготовят ещё ${left}: ${CAP_N[capGroup(k)]}`);
-  const when = earliestLaunch(k, zone.id, delay);
+  let when = earliestLaunch(k, zone.id, delay);
   const spacing = launchSpacing(k, zone.id);
-  const busy = when > (night ? G.t : 0) + delay * 3600 + 60;
-  if (when + (Math.min(n, E.stock[k]) - 1) * spacing > NIGHT_LEN - 900)
-    return fail(busy ? `Пусковые района «${zone.n}» заняты до ${clock(when)}: до рассвета пакет не успеет` : 'До рассвета этот пуск не успевает');
 
   if ((TT[k].rc || TT[k].brood) && !G.weather.fpv) return fail(`Погода нелётная для FPV: ${G.weather.n.toLowerCase()}`);
   /* FPV летит недалеко: цель должна быть в пределах дальности от района пуска */
@@ -77,17 +74,38 @@ function launchStrike(p) {
     return fail(`Далеко: «${TT[k].n}» летит не дальше ${TT[k].range} км от района пуска`);
   /* маршрут: точки игрока, иначе то, что он видел в предпросмотре, иначе автомаршрут */
   const ball = !patrol && isBallistic(k);
+  let route = null;
   if (!ball) {
     const aim = patrol ? null : aimOf(tgt);
-    const route = wps.length ? (patrol ? wps : [...wps, aim]) : TT[k].range ? [aim] : netPath(p.route, 40);
+    route = wps.length ? (patrol ? wps : [...wps, aim]) : TT[k].range ? [aim] : netPath(p.route, 40);
+    /* для синхронизации нужен известный заранее маршрут: считаем автомаршрут здесь */
+    if (!route.length && p.sync != null) route = eRoute({ x: zone.x, y: zone.y }, aim, TT[k].cls);
     ROUTE_OVERRIDE = route.length ? route : null;
+  }
+  /* «время на цели»: середина залпа приходит вместе с выбранным пакетом (плюс сдвиг) */
+  const nn = Math.min(n, E.stock[k]);
+  let syncG = null;
+  if (p.sync != null && !patrol) {
+    syncG = E.groups.find(x => x.id === +p.sync);
+    if (!syncG) { ROUTE_OVERRIDE = null; return fail('Пакет для синхронизации не найден') }
+    const off = SYNC_OFFS.includes(+p.syncOff) ? +p.syncOff : 0;
+    const want = salvoMid(syncG) + off * 60;
+    const ft = flightTime(k, zone, ball ? [aimOf(tgt)] : route, !!p.high);
+    const t0 = want - ft - (nn - 1) * spacing / 2;
+    if (t0 < when) { ROUTE_OVERRIDE = null; return fail(`К ${clock(want)} не успеть: самое раннее прибытие ≈ ${clock(when + ft + (nn - 1) * spacing / 2)}`) }
+    when = t0;
+  }
+  const busy = when > (night ? G.t : 0) + delay * 3600 + 60;
+  if (when + (nn - 1) * spacing > NIGHT_LEN - 900) {
+    ROUTE_OVERRIDE = null;
+    return fail(busy ? `Пусковые района «${zone.n}» заняты до ${clock(when)}: до рассвета пакет не успеет` : 'До рассвета этот пуск не успевает');
   }
   if (patrol) {
     const end = wps[wps.length - 1];
     tgt = { aim: { x: end.x, y: end.y }, patrol: 1 };
   }
   const g = eGroup(k, n, zone, tgt, {
-    launch: when, spacing, exact: patrol || wps.length > 0,
+    launch: when, spacing, exact: patrol || wps.length > 0, tot: !!syncG,
     op: patrol ? 'маршрут' : 'удар', wave: 'u' + (G.pid = (G.pid || 0) + 1), high: !!p.high
   });
   ROUTE_OVERRIDE = null;
@@ -98,7 +116,7 @@ function launchStrike(p) {
   /* мониторинг ПВО замечает волну дронов */
   flushWaveIntel();
   const where = patrol ? ('маршрут, ' + wps.length + ' тч.') : tgt.obj ? '«' + tgt.obj.n + '»' : 'кв. ' + sq(tgt.aim);
-  hq(`Пакет: ${g.n}× ${TT[g.kind].n}, район «${zone.n}» → ${where}. Пуск ${clock(g.launch)}, подлёт около ${fmtDur(Math.max(0, g.arrive - g.launch))}.`, 'hq');
+  hq(`Пакет: ${g.n}× ${TT[g.kind].n}, район «${zone.n}» → ${where}. Пуск ${clock(g.launch)}, подлёт около ${fmtDur(Math.max(0, g.arrive - g.launch))}${syncG ? `, над целью ≈ ${clock(salvoMid(g))} — вместе с пакетом «${TT[syncG.kind].n}»` : ''}.`, 'hq');
   return { ok: true, gid: g.id };
 }
 

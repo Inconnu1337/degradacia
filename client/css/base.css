@@ -1,5 +1,5 @@
 :root{
-  --bg:#04070a; --pn:rgba(10,16,22,.94); --pn2:#0f1820; --bd:#1d2b36; --bd2:#2b3f4e;
+  --bg:#04070a; --pn:rgba(10,16,22,.97); --pn2:#0f1820; --bd:#1d2b36; --bd2:#2b3f4e;
   --tx:#d7dfe5; --mu:#7f909c; --ac:#f2b33d; --rd:#ff5b47; --gn:#6fd18d; --bl:#6cc3ff; --vi:#e27bff;
   --pw:clamp(238px,20.5vw,330px); --th:44px;
   font-size:clamp(11px,calc(.36vw + 6.7px),14px);
@@ -8,6 +8,13 @@
 html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--tx);
   font-family:"Segoe UI",Roboto,system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
 #map{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:default}
+/* «экран штаба»: виньетка и зерно — неподвижные слои поверх карты; видеокарта собирает их
+   один раз, зерно движется смещением слоя (без перерисовки), карту под ними не трогаем */
+#fxVig,#fxGrain{position:fixed;pointer-events:none;z-index:1}
+#fxVig{inset:0;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 45%,rgba(0,0,0,.42) 100%)}
+#fxGrain{inset:-96px;opacity:.55;background-repeat:repeat;will-change:transform;animation:grain .5s steps(5) infinite}
+@keyframes grain{0%{transform:translate(0,0)}20%{transform:translate(-37px,21px)}40%{transform:translate(18px,-44px)}60%{transform:translate(-52px,-9px)}80%{transform:translate(29px,40px)}100%{transform:translate(0,0)}}
+body.no-vig #fxVig,body.no-grain #fxGrain{display:none}
 
 
 button{font:inherit;color:inherit}

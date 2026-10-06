@@ -106,8 +106,8 @@ const AttackRender = (() => {
       const col = AIR_COL[th.cls] || '#fff';
       const big = ['cruise', 'ballistic', 'aeroball'].includes(th.cls);
       const L = clamp(s * (big ? 3 : 2.2), big ? 16 : 13, big ? 54 : 40) * (AIR_SIZE[th.cls] || 1);
-      cx.save(); cx.translate(q.x, q.y); cx.rotate(Math.atan2(th.hy, th.hx)); cx.scale(L, L);
-      (ART_AIR[th.cls] || ART_AIR.drone)(cx, col, GANIM, th);
+      cx.save(); cx.translate(q.x, q.y); cx.rotate(Math.atan2(th.hy, th.hx));
+      drawAir(cx, th.cls, col, L, GANIM, th);
       cx.restore();
       if (selT === th.id) {
         cx.strokeStyle = '#f2b33d'; cx.lineWidth = 1.5;

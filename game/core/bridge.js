@@ -232,12 +232,13 @@ function requestSkip(role, v) {
 
 /** что сторона знает о правилах времени (для кнопок у клиента) */
 function skipView(role) {
+  if (role === 'spec') return { can: false, on: !!G.skip };
   const other = MODE.humans.find(r => r !== role);
   return { can: canSkip(role), on: !!G.skip, mine: !!(G.skipAsk && G.skipAsk[role]), theirs: !!(other && G.skipAsk && G.skipAsk[other]) };
 }
 
 function timeView(role) {
-  if (!multiplayer()) return null;
+  if (!multiplayer() || role === 'spec') return null;
   const p = TIME.pause;
   return {
     cooldown: Math.max(0, TIME.last[role] + TIME_RULES.cooldownMs - REAL_MS),

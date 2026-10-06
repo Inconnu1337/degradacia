@@ -52,7 +52,7 @@ const DefenseFlow = (() => {
     /* поставки партнёров на следующую ночь */
     let gift = '';
     if (!last) {
-      const plan = { 2: ['shield'], 3: ['krom', 'ttz'], 4: ['spaag', 'icpt'], 5: ['shield', 'ew'] }[G.night + 1];
+      const plan = { 2: ['krom'], 3: ['ttz', 'mog'], 4: ['spaag'], 5: ['krom'] }[G.night + 1];
       if (plan) {
         G.gifts.push(...plan);
         gift = `<p class="good">Поставка от партнёров без оплаты: <b>${plan.map(k => UT[k].n).join(', ')}</b>. Разместите во время подготовки (вкладка «Снабжение»).</p>`;

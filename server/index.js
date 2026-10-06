@@ -62,7 +62,12 @@ function serveStatic(req, res) {
 function createServer() {
   const server = http.createServer(serveStatic);
   /* большой предел — ради загрузки сохранения; обычные сообщения маленькие */
-  const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 8 * 1024 * 1024 });
+  /* снимки — JSON с повторяющимися полями: сжатие уменьшает трафик в несколько раз.
+     Мелкие служебные сообщения (< 1 КБ) не жмём — для них это лишняя работа. */
+  const wss = new WebSocketServer({
+    server, path: '/ws', maxPayload: 8 * 1024 * 1024,
+    perMessageDeflate: { threshold: 1024, zlibDeflateOptions: { level: 3 }, serverNoContextTakeover: false, clientNoContextTakeover: true, concurrencyLimit: 4 }
+  });
 
   wss.on('connection', ws => {
     const client = {

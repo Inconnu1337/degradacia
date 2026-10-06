@@ -80,10 +80,10 @@ const AttackAI = (() => {
     }
     for (const u of G.units) {
       const T = UT[u.k];
-      if (!T.w || u.am >= T.w.am) continue;
+      if (!T.w || u.am >= T.w.am || !reloadNeed(u)) continue;
       const c = reloadCost(u);
       if (G.budget - c < 20) continue;
-      G.budget -= c; u.am = T.w.am;
+      G.budget -= c; u.am = reloadTake(u);
     }
     for (const o of G.objs) {
       if (o.hp <= 0 || o.hp >= 90 || G.budget < 26) continue;

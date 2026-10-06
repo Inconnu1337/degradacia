@@ -259,6 +259,7 @@ function receive(u, o) {
     case 'reload': {
       if (!T.w) return;
       if (u.am >= T.w.am) { say(u, 'Боекомплект полный.', 'm'); return }
+      if (!reloadNeed(u)) { say(u, 'Склад перехватчиков пуст: пополнять нечем. Ждём поставки.', 'w'); return }
       const cost = reloadCost(u);
       if (G.budget < cost) { say(u, `На пополнение нужно ${num(cost)} млн, а средств нет.`, 'w'); return }
       if (!sk.x && engagedNow(u)) {
@@ -269,6 +270,7 @@ function receive(u, o) {
         return;
       }
       G.budget -= cost;
+      u.rlAm = reloadTake(u);
       u.st = 'reload'; u.stT = G.t + reloadTime(u);
       const tz = nearSupport(u, 'reload');
       say(u, tz ? `Принял. ТЗМ «${esc(tz.crew.cs)}» рядом, управимся за ${fmtDur(u.stT - G.t)}.`
@@ -320,10 +322,28 @@ function nearSupport(u, kind) {
   return best;
 }
 
+/* ---------- склад перехватчиков края ----------
+   «Сапсаны» (UT.pool) пополняются только со склада G.icptPool: на старте
+   ICPT_POOL0 аппаратов, каждый день +ICPT_POOL_DAY. Пуст склад — пусты пусковые. */
+const ICPT_POOL0 = 24, ICPT_POOL_DAY = 10;
+
+/** сколько можно дозарядить сейчас (для «Сапсана» — сколько есть на складе) */
+function reloadNeed(u) {
+  const T = UT[u.k], need = T.w.am - u.am;
+  return T.pool ? Math.min(need, Math.max(0, G.icptPool || 0)) : need;
+}
+
+/** снять со склада и вернуть, до скольких зарядится расчёт */
+function reloadTake(u) {
+  const n = reloadNeed(u);
+  if (UT[u.k].pool) G.icptPool -= n;
+  return u.am + n;
+}
+
 function reloadCost(u) {
   const T = UT[u.k];
   if (!T.w) return 0;
-  let c = (T.w.mc ? (T.w.am - u.am) * T.w.mc : (T.rl.c || 0)) * RELOAD_MUL;
+  let c = (T.w.mc ? reloadNeed(u) * T.w.mc : (T.rl.c || 0)) * RELOAD_MUL;
   if (nearSupport(u, 'reload')) c *= .75;
   if (G.ammoDeal) c *= .5;   /* эшелон ракет от партнёров */
   return c;
@@ -364,7 +384,8 @@ function prepExec(u, o) {
   else if (o.t === 'reload') {
     const c = reloadCost(u);
     if (G.budget < c) { toast('Не хватает бюджета', 'i'); return }
-    G.budget -= c; u.am = T.w.am;
+    if (!reloadNeed(u)) { toast('Склад перехватчиков пуст', 'i'); return }
+    G.budget -= c; u.am = reloadTake(u);
   }
   uiDirty();
 }

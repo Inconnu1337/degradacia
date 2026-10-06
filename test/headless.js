@@ -9,6 +9,12 @@
 const assert = require('assert');
 const { createEngine, HUMANS } = require('../server/engine');
 
+/* версия в shared/config.js совпадает с package.json */
+{
+  const v = createEngine('defense').eval('GAME_VERSION');
+  assert.strictEqual(v, require('../package.json').version, 'GAME_VERSION не совпадает с package.json');
+}
+
 function play(mode, seedNights = 5) {
   const e = createEngine(mode);
   const humans = HUMANS[mode];

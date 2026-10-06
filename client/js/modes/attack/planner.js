@@ -93,7 +93,7 @@ function launchStrike() {
   if (!p.preview) computePreview();
   const tgt = patrol || !p.tgt ? null : p.tgt.obj ? { obj: p.tgt.obj.id } : { aim: p.tgt.aim };
   const route = !patrol && !p.wps.length && p.preview && !isBallistic(p.k) ? p.preview.slice(1) : [];
-  cmd('launch', { plan: { k: p.k, n: p.n, zid: p.zid, delay: p.delay, high: p.high, wps: p.wps, route, tgt } }).then(res => {
+  cmd('launch', { plan: { k: p.k, n: p.n, zid: p.zid, delay: p.delay, high: p.high, wps: p.wps, route, tgt, sync: p.sync, syncOff: p.syncOff || 0 } }).then(res => {
     if (!res.ok) return;
     p.wps = [];
     computePreview();

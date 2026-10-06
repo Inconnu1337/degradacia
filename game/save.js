@@ -8,8 +8,11 @@
    Set и Map — { $set: […] } · { $map: […] }, функции отбрасываются.
    При загрузке сначала восстанавливаются объекты и расчёты, потом всё
    остальное со ссылками на них.
-   Сохранять можно только днём (фаза подготовки): ночью в состоянии
-   живые запросы расчётов с колбэками и цели в воздухе.
+   Сохранять можно днём и ночью. Ночью в файл идут и цели в воздухе,
+   и очередь пусков, и приказы в пути; не сохраняются только наши
+   ракеты в полёте (ссылаются на цель напрямую), запросы расчётов
+   (у них колбэки) и ответы-колбэки в эфире — после загрузки
+   расчёты при нужде спросят снова. Ночная партия открывается на паузе.
    ============================================================ */
 
 const SAVE_VERSION = 1;
@@ -45,7 +48,10 @@ function encodeState() {
     return r;
   }
   const g = {};
-  for (const k of Object.keys(G)) if (k !== 'objs' && k !== 'units') { const e = enc(G[k]); if (e !== undefined) g[k] = e }
+  const SKIP = new Set(['objs', 'units', 'miss', 'reqs', 'comms']);
+  for (const k of Object.keys(G)) if (!SKIP.has(k)) { const e = enc(G[k]); if (e !== undefined) g[k] = e }
+  /* приказы в пути: без колбэков и без «уничтожить цель» (там ссылка на саму цель) */
+  g.comms = enc(G.comms.filter(c => c.o && c.o.t !== 'cb' && c.o.t !== 'assign'));
   g.objs = G.objs.map(o => enc(o, true));
   g.units = G.units.map(u => enc(u, true));
   return {
@@ -95,7 +101,20 @@ function decodeState(d) {
   G = ng; E = dec(d.E); S = dec(d.S);
   csUsed = dec(d.csUsed) || {};
   if (d.time && d.time.AUTO) for (const r in AUTO) AUTO[r] = d.time.AUTO[r] !== false;
-  G.phase = 'prep'; G.speed = 0; G.ready = {};
-  G.reqs = []; G.comms = []; G.threats = []; G.miss = [];
+  const night = G.phase === 'night';
+  G.speed = 0; G.ready = {}; G.reqs = []; G.miss = [];
   SPEED = 0;
+  if (night) {
+    /* ночь продолжается с паузы: ракеты в полёте и запросы не восстанавливаются */
+    G.comms = (G.comms || []).filter(c => c && c.u && c.o);
+    for (const u of units) {
+      u.pend = G.comms.filter(c => c.u === u).length;
+      u.after = (u.after || []).filter(o => o && o.t !== 'assign' && o.t !== 'cb');
+    }
+    for (const th of G.threats || []) th.eng = 0;
+    G.threats = G.threats || [];
+  } else {
+    G.phase = 'prep';
+    G.comms = []; G.threats = [];
+  }
 }

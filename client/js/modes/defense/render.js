@@ -114,7 +114,7 @@ const DefenseRender = (() => {
      сектор вероятного курса — он шире у дронов, которые петляют, — и
      вероятный объект по текущему курсу со временем подлёта. Баллистика —
      точка падения, она известна по траектории. */
-  const PATROL_RZ_C = 12;   /* радиус зоны маршрута патруля (как PATROL_RZ на сервере) */
+  const PATROL_RZ_C = 9;   /* радиус зоны маршрута патруля (как PATROL_RZ на сервере) */
   const AIM_CLS = { cruise: 14, jet: 16, arm: 18, ballistic: 1, aeroball: 1 };
 
   function drawAimGuess(th, q, s, sel) {
@@ -178,7 +178,7 @@ const DefenseRender = (() => {
       const on = selU === u.id;
       const col = on ? 'rgba(255,214,120,.8)' : 'rgba(255,214,120,.35)', fill = on ? 'rgba(255,214,120,.05)' : null;
       const pts = u.patrol.pts || [u.patrol];
-      const qs = pts.map(p => ring(p, u.patrol.r || 24, col, fill));
+      const qs = pts.map(p => ring(p, u.patrol.r || 16, col, fill));
       if (qs.length > 1) {
         cx.strokeStyle = col; cx.lineWidth = 1.2; cx.setLineDash([2, 5]);
         cx.beginPath(); qs.forEach((q, i) => i ? cx.lineTo(q.x, q.y) : cx.moveTo(q.x, q.y)); cx.closePath(); cx.stroke(); cx.setLineDash([]);
@@ -300,9 +300,7 @@ const DefenseRender = (() => {
       cx.translate(q.x, q.y);
       if (lost) { cx.globalAlpha = clamp(1 - age / 200, .18, .55) }
       cx.rotate(Math.atan2(th.hy, th.hx));
-      cx.scale(L, L);
-      const art = th.idLv <= 0 ? ART_AIR.unknown : (ART_AIR[th.cls] || ART_AIR.drone);
-      art(cx, col, GANIM, th);
+      drawAir(cx, th.idLv <= 0 ? 'unknown' : th.cls, col, L, GANIM, th);
       cx.restore();
       /* рамка выделения и метка */
       if (selT === th.id) {

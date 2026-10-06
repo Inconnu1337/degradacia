@@ -4,15 +4,20 @@
    Держит движок, подключённых игроков по сторонам, журналы для
    переподключения и рассылает снимки/события.
    Сторона может быть у нескольких клиентов сразу (совместная игра).
+   Наблюдатели (роль 'spec') — сколько угодно: видят всю обстановку
+   без тумана войны, журналы обеих сторон, но ничего не приказывают.
    ============================================================ */
 const { createEngine, HUMANS } = require('./engine');
+const VERSION = require('../package.json').version;
 
 const TICK_MS = 50;          /* шаг серверного цикла */
 const SNAP_MS = 100;         /* снимки клиентам: 10 в секунду */
 const LOG_KEEP = 280;        /* строк журнала на вкладку для переподключившихся */
 const IDLE_MS = 10 * 60e3;   /* пустая комната живёт 10 минут */
 
-const SIDE_NAME = { def: 'штаб ПВО', atk: 'сторона налёта' };
+const SIDE_NAME = { def: 'штаб ПВО', atk: 'сторона налёта', spec: 'наблюдатель' };
+/** что наблюдателю можно: сохранить партию и снова открыть окно */
+const SPEC_CMDS = new Set(['save', 'reopen']);
 
 class Room {
   /** saved — содержимое файла сохранения (если партия загружается) */
@@ -43,20 +48,33 @@ class Room {
 
   /** сколько клиентов на каждой стороне */
   seats() {
-    const s = {};
+    const s = { spec: 0 };
     for (const r of this.humans) s[r] = 0;
     for (const c of this.clients) s[c.role]++;
     return s;
+  }
+
+  /** чьими глазами наблюдатель смотрит в основном (эфир, разведка): ПВО, если она за людьми */
+  get specMain() { return this.humans.includes('def') ? 'def' : this.humans[0] }
+
+  /** журнал наблюдателя: эфир основной стороны, а журнал другой — во вкладке «mind» с пометкой */
+  specLogs() {
+    const main = this.logs[this.specMain], other = this.humans.find(r => r !== this.specMain);
+    const L = { radio: main.radio.slice(), intel: main.intel.slice(), mind: [] };
+    if (other) L.mind = this.logs[other].radio.map(ev => ({ ...ev, box: 'mind' }));
+    else L.mind = main.mind.slice();
+    return L;
   }
 
   /** свободная сторона (для входа по ссылке) */
   freeSide() { const s = this.seats(); return this.humans.find(r => !s[r]) || null }
 
   join(client, role) {
-    if (!this.humans.includes(role)) role = this.freeSide() || this.humans[0];
+    if (role !== 'spec' && !this.humans.includes(role)) role = this.freeSide() || this.humans[0];
     client.room = this; client.role = role;
     this.clients.add(client);
-    client.send({ t: 'joined', room: this.id, mode: this.mode, role, humans: this.humans, seats: this.seats(), logs: this.logs[role], modal: this.modal[role] });
+    const spec = role === 'spec';
+    client.send({ t: 'joined', ver: VERSION, room: this.id, mode: this.mode, role, humans: this.humans, seats: this.seats(), logs: spec ? this.specLogs() : this.logs[role], modal: spec ? null : this.modal[role] });
     client.sendRaw(this.snapMsg(role, this.engine.view(role)));
     this.broadcastSeats(client, `${SIDE_NAME[role]}: игрок подключился`);
   }
@@ -85,6 +103,7 @@ class Room {
       return client.send({ t: 'res', id, res });
     }
     /* снова открыть закрытое окно разбора/итогов — это забота комнаты, не правил */
+    if (client.role === 'spec' && !SPEC_CMDS.has(name)) return client.send({ t: 'res', id, res: { ok: false, error: 'наблюдатель только смотрит' } });
     if (name === 'reopen') {
       const html = this.modal[client.role];
       if (html) client.send({ t: 'ev', list: [{ e: 'modal', html }] });
@@ -126,8 +145,9 @@ class Room {
   /** события движка → журналы комнаты и клиенты сторон */
   dispatch(events) {
     if (!events.length) return;
-    const per = {};
+    const per = { spec: [] };
     for (const r of this.humans) per[r] = [];
+    const main = this.specMain;
     for (const ev of events) {
       const to = ev.to === '*' ? this.humans : this.humans.includes(ev.to) ? [ev.to] : [];
       delete ev.to;
@@ -139,6 +159,10 @@ class Room {
           this.logs[r] = { radio: [], intel: [], mind: [] };
         } else if (ev.e === 'modal') this.modal[r] = ev.html;
         per[r].push(ev);
+        /* наблюдателю: всё, что видит основная сторона (кроме всплывашек и окон),
+           и журнал другой стороны — во вкладку «mind» */
+        if (r === main) { if (ev.e !== 'toast' && ev.e !== 'modal') per.spec.push(ev) }
+        else if (ev.e === 'log' && ev.box === 'radio') per.spec.push({ ...ev, box: 'mind' });
       }
     }
     for (const c of this.clients) if (per[c.role].length) c.send({ t: 'ev', list: per[c.role] });

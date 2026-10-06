@@ -34,10 +34,13 @@ function menuHTML() {
         <span>Есть код партии?</span>
         <input id="joinCode" maxlength="4" placeholder="ABCD" autocomplete="off" spellcheck="false">
         <button class="btn" data-a="joinCode">Войти</button>
+        <button class="btn sm" data-a="joinAs" data-v="def" title="Зайти за штаб ПВО (можно вдвоём)">за ПВО</button>
+        <button class="btn sm" data-a="joinAs" data-v="atk" title="Зайти за налёт (можно вдвоём)">за налёт</button>
+        <button class="btn sm" data-a="joinAs" data-v="spec" title="Смотреть партию: видно всё, управлять нельзя">Смотреть</button>
       </div>
       <div class="mfoot">
         ${Game.room ? `<button class="btn" data-a="resumeGame">← Вернуться в партию ${esc(Game.room)}</button>` : ''}
-        <span class="mu">Новая партия начинает кампанию заново. Код партии виден в строке под верхней панелью.</span>
+        <span class="mu">Новая партия начинает кампанию заново. Код партии виден в строке под верхней панелью. · версия ${GAME_VERSION}</span>
       </div>
     </div>`;
 }
@@ -60,9 +63,10 @@ function writeHash() {
   try { history.replaceState(null, '', `#room=${Game.room}&side=${Game.role}`) } catch (e) { /* file:// и т. п. */ }
 }
 
-function inviteLink() {
-  const other = Game.humans.find(r => r !== Game.role);
-  return `${location.origin}${location.pathname}#room=${Game.room}${other ? '&side=' + other : ''}`;
+/** ссылка-приглашение: other — соперник, mate — напарник на мою сторону, spec — зритель */
+function inviteLink(kind) {
+  const side = kind === 'spec' ? 'spec' : kind === 'mate' ? Game.role : Game.humans.find(r => r !== Game.role);
+  return `${location.origin}${location.pathname}#room=${Game.room}${side ? '&side=' + side : ''}`;
 }
 
 /* ---------- вход в партию ---------- */
@@ -107,9 +111,14 @@ function initMenu() {
     else if (a === 'menu') showMenu();
     else if (a === 'resumeGame') hideMenu();
     else if (a === 'copyLink') {
-      const link = inviteLink();
+      const kind = el.dataset.v || 'other', link = inviteLink(kind);
+      const who = { other: 'соперника', mate: 'напарника', spec: 'зрителей' }[kind];
       (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject())
-        .then(() => toast('Ссылка для соперника скопирована', 'i'), () => prompt('Ссылка для соперника:', link));
+        .then(() => toast(`Ссылка для ${who} скопирована`, 'i'), () => prompt(`Ссылка для ${who}:`, link));
+    }
+    else if (a === 'joinAs') {
+      const c = ($('#joinCode').value || '').trim();
+      if (c.length === 4) joinGame(c, el.dataset.v); else toast('Код партии — четыре буквы', 'i');
     }
   });
   document.addEventListener('keydown', e => {
@@ -130,7 +139,7 @@ function downloadSave(name, data) {
 }
 
 function saveGame() {
-  if (!G || G.phase !== 'prep') { toast('Сохранять можно днём, в фазе подготовки', 'i'); return }
+  if (!G || (G.phase !== 'prep' && G.phase !== 'night')) { toast('Сохранять можно днём и ночью, но не во время разбора', 'i'); return }
   cmd('save').then(r => { if (!r.ok) toast(r.error || 'Не удалось сохранить', 'i') });
 }
 

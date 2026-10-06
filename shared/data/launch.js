@@ -28,14 +28,42 @@ const LAUNCH = {
     night: { fpv: 600, mother: 900, kab: 1500, drone: 900, decoy: 900, loiter: 900, jet: 1200, arm: 1200, recon: 900, ewuav: 1200, cruise: 10800, ballistic: 1800, aeroball: 3600 },
     day: { fpv: 240, mother: 240, kab: 300, drone: 240, decoy: 240, loiter: 240, jet: 300, arm: 300, recon: 240, ewuav: 300, cruise: 2700, ballistic: 600, aeroball: 1800 }
   },
-  nightCap: { fpv: 24, ulei: 4, plita: 8, drones: 50, strizh: 4, grach: 4, sova: 3, vual: 1, krechet: 6, albatros: 8, molot: 3, garpia: 1 }
+  nightCap: { fpv: 30, ulei: 5, plita: 8, jalo: 70, moth: 35, shershen: 12, strizh: 6, grach: 5, sova: 4, vual: 2, krechet: 8, albatros: 12, molot: 4, garpia: 1 }
 };
 
-/** подписи групп лимита */
-const CAP_N = { fpv: 'FPV «Оса»', ulei: '«Улей»', plita: 'КАБ «Плита»', drones: 'дроны и имитаторы', strizh: '«Стриж»', grach: '«Грач-Э»', sova: '«Сова»', vual: '«Вуаль»', krechet: '«Кречет-М»', albatros: '«Альбатрос»', molot: '«Молот»', garpia: '«Гарпия»' };
+/** крылатая ракета высоким профилем летит быстрее во столько раз */
+const HI_ALT_SP = 1.2;
 
-/** к какой группе ночного лимита относится средство */
-const capGroup = k => (k === 'jalo' || k === 'moth' || k === 'shershen') ? 'drones' : k;
+/** лёгкие тихоходные цели, которых сносит ветер (как WIND_CLS на сервере) */
+const WIND_LIGHT = { drone: 1, decoy: 1, loiter: 1, fpv: 1, mother: 1, recon: 1, ewuav: 1 };
+
+/** время подлёта пакета по маршруту, с: start — точка пуска, path — маршрут; учитывает текущий ветер */
+function flightTime(k, start, path, high) {
+  const T = TT[k], sp = T.sp * (high && T.cls === 'cruise' ? HI_ALT_SP : 1);
+  let t = 0, c = start;
+  for (const p of path) {
+    const d = dist(c, p);
+    let m = 1;
+    if (d > 0 && WIND_LIGHT[T.cls] && G.wind) {
+      const along = ((p.x - c.x) * Math.cos(G.wind.a) + (p.y - c.y) * Math.sin(G.wind.a)) / d;
+      m = clamp(1 + along * G.wind.v / (T.sp * 1000) * .9, .45, 1.6);
+    }
+    t += d / (sp * m); c = p;
+  }
+  return t;
+}
+
+/** середина залпа пакета над целью, с */
+const salvoMid = g => g.arrive + (g.n - 1) * (g.spc || 0) / 2;
+
+/* синхронизация «время на цели»: пакет приходит вместе с другим, со сдвигом (мин) */
+const SYNC_OFFS = [-10, -5, 0, 5, 10];
+
+/** подписи групп лимита */
+const CAP_N = { fpv: 'FPV «Оса»', ulei: '«Улей»', plita: 'КАБ «Плита»', jalo: '«Жало-М»', moth: '«Мотылёк»', shershen: '«Шершень»', strizh: '«Стриж»', grach: '«Грач-Э»', sova: '«Сова»', vual: '«Вуаль»', krechet: '«Кречет-М»', albatros: '«Альбатрос»', molot: '«Молот»', garpia: '«Гарпия»' };
+
+/** к какой группе ночного лимита относится средство (у каждого — свой) */
+const capGroup = k => k;
 
 /** сколько ещё можно подготовить за эту ночь */
 const capLeft = k => LAUNCH.nightCap[capGroup(k)] + ((E.capBonus || {})[capGroup(k)] || 0) - ((E.used || {})[capGroup(k)] || 0);

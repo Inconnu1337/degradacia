@@ -15,6 +15,7 @@
 </head>
 <body>
 <canvas id="map"></canvas>
+<div id="fxVig" aria-hidden="true"></div><div id="fxGrain" aria-hidden="true"></div>
 
 <header id="top">
   <div class="brand"><span id="hdBrand">НОЧНОЙ РУБЕЖ</span><small id="hdNight" class="hide-s"></small></div>
@@ -32,7 +33,7 @@
   <button class="btn hide-xs" id="btnZones" data-a="zones">Зоны</button>
   <button class="btn hide-xs on" id="btnAim" data-a="aim" title="Прогноз удара: сектор курса ракет, вероятный объект и время подлёта (V)" hidden>Прогноз</button>
   <button class="btn hide-s" id="btnSpoil" data-a="spoil" title="Режим наблюдателя: показывать вкладку с замыслом противника">Замысел</button>
-  <button class="btn hide-xs" id="btnSave" data-a="saveGame" title="Сохранить партию файлом (днём). Загрузить — в меню; друг зайдёт по новому коду">💾</button>
+  <button class="btn hide-xs" id="btnSave" data-a="saveGame" title="Сохранить партию файлом (днём и ночью; ночная откроется на паузе). Загрузить — в меню; друг зайдёт по новому коду">💾</button>
   <button class="btn" id="btnSound" data-a="sound" title="Звук и экран: громкость, музыка, рябь, дрожь">🔊</button>
   <button class="btn hide-xs" id="btnMode" data-a="menu" title="Меню: режимы, новая партия, вход по коду">Меню</button>
   <button class="btn" data-a="help" title="Как играть (H)">?</button>
@@ -107,6 +108,7 @@
 <script src="js/modes/attack/input.js"></script>
 <script src="js/modes/attack/ui.js"></script>
 <script src="js/modes/attack/index.js"></script>
+<script src="js/modes/spec/index.js"></script>
 <script src="js/audio/sound.js"></script>
 <script src="js/main.js"></script>
 </body>

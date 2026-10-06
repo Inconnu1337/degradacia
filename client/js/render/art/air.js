@@ -293,6 +293,34 @@ const ART_AIR = {
   }
 };
 
+/* ---------- кэш мелких силуэтов ----------
+   Пока борт на экране меньше SPRITE_MAX пикселей, анимации винтов не видно,
+   а векторная отрисовка с градиентами на сотню целей дорогая. Такой силуэт
+   рисуется один раз в картинку (по классу, цвету и размеру) и дальше
+   ставится drawImage. Вызывать в уже повёрнутой системе (нос в +X). */
+const SPRITE_MAX = 26;
+const SPRITES = new Map();
+
+function drawAir(g, key, col, L, t, th) {
+  const art = ART_AIR[key] || ART_AIR.drone;
+  if (L > SPRITE_MAX) { g.scale(L, L); art(g, col, t, th); return }
+  const Lq = Math.max(6, Math.round(L)), br = th && th.br ? 1 : 0;
+  const id = key + col + Lq + br;
+  let sp = SPRITES.get(id);
+  if (!sp) {
+    const S = Math.ceil(Lq * 2.4), k = typeof DPR === 'number' ? DPR : 1;
+    const c = document.createElement('canvas');
+    c.width = c.height = Math.ceil(S * k);
+    const x = c.getContext('2d');
+    x.scale(k, k); x.translate(S / 2, S / 2); x.scale(Lq, Lq);
+    art(x, col, .37, { id: 3, br });
+    sp = { c, S };
+    if (SPRITES.size > 600) SPRITES.clear();
+    SPRITES.set(id, sp);
+  }
+  g.drawImage(sp.c, -sp.S / 2, -sp.S / 2, sp.S, sp.S);
+}
+
 /* ============================================================
    НАШИ РАКЕТЫ И ПЕРЕХВАТЧИКИ (в полёте)
    ============================================================ */

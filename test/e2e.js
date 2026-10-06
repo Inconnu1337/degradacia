@@ -12,6 +12,7 @@ const { createServer } = require('../server/index');
 
 const errors = [];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+const clockStr = t => { const m = Math.floor(t / 60) + 19 * 60; return String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0') };
 
 /* заглушки браузерных API, которых нет в jsdom: canvas и Web Audio */
 function fakeAudio(w) {
@@ -171,6 +172,35 @@ async function waitFor(fn, ms, what) {
   assert(A.ev('$("#lc_radio").childElementCount') > 3, 'эфир ПВО пуст');
   assert(B.ev('$("#lc_radio").childElementCount') > 1, 'журнал налёта пуст');
   for (const t of JSON.parse(A.ev('JSON.stringify(G.threats)'))) if (t.idLv < 2) assert.strictEqual(t.k, null, 'тип цели утёк');
+
+  /* второй игрок за ПВО и наблюдатель */
+  const A2 = await client(port, `#room=${room}&side=def`, 'ПВО-2');
+  await waitFor(() => A2.ev('G && Game.role === "def" && G.units.length > 0'), 5000, 'второй игрок ПВО');
+  const radar = A2.ev('(G.units.find(u => u.k === "krom") || {}).id');
+  assert((await A2.cmd('order', { id: radar, o: { t: 'radar', v: 'on' } })).ok, 'приказ второго игрока ПВО');
+  await waitFor(() => A.ev('Game.seats.def === 2'), 3000, 'двое за ПВО');
+  const W = await client(port, `#room=${room}&side=spec`, 'Зритель');
+  await waitFor(() => W.ev('G && Game.role === "spec" && G.units.length > 0 && E && E.groups'), 5000, 'наблюдатель');
+  assert(!(await W.cmd('speed', { v: 60 })).ok, 'наблюдатель не должен управлять временем');
+  assert(!(await W.cmd('order', { id: radar, o: { t: 'radar', v: 'off' } })).ok, 'наблюдатель не должен приказывать');
+  assert(W.ev('G.threats.every(t => t.k && t.idLv === 2)'), 'наблюдатель видит цели без тумана');
+  W.ev('renderAll()'); A2.ev('renderAll()');
+  console.log('  ✔ двое за ПВО, наблюдатель видит всё и ничего не может');
+
+  /* сохранение ночью → загрузка: та же ночь, цели в воздухе, пауза */
+  A.ev('window.__saved = null; downloadSave = (n, d) => { window.__saved = { n, d } }');
+  const tNight = A.ev('G.t'), thrNight = A.ev('G.threats.length');
+  assert((await A.cmd('save')).ok, 'сохранение ночью');
+  await waitFor(() => A.ev('window.__saved'), 3000, 'файл ночного сохранения');
+  const nf = JSON.parse(A.ev('JSON.stringify(window.__saved.d)'));
+  const N = await client(port, '', 'Загрузка ночи');
+  await waitFor(() => N.w.document.querySelector('[data-a="create"]'), 5000, 'меню');
+  N.ev(`Net.send({ t: 'load', file: ${JSON.stringify(nf)}, role: 'def' })`);
+  await waitFor(() => N.ev('G && G.phase === "night" && Game.room !== ' + JSON.stringify(room)), 5000, 'загруженная ночь');
+  assert(Math.abs(N.ev('G.t') - tNight) < 120, 'время ночи не совпало');
+  assert.strictEqual(N.ev('G.chosen'), 0, 'ночная партия должна открываться на паузе');
+  console.log(`  ✔ сохранение ночью → загрузка: ${clockStr(N.ev('G.t'))}, целей ${N.ev('G.threats.length')} (было ${thrNight}), пауза`);
+  N.dom.window.close(); W.dom.window.close(); A2.dom.window.close();
 
   A.dom.window.close(); B.dom.window.close();
   server.close();

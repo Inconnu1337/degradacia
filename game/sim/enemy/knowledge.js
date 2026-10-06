@@ -18,6 +18,7 @@ function setKnowPos(k, u, err) { k.x = u.x + k.ox * err; k.y = u.y + k.oy * err;
 
 function eSawLaunch(u) {
   const k = eKnow(u);
+  k.quiet = 0;
   k.conf = Math.min(1, k.conf + .05);
   k.shots.push(G.t);
   if (k.shots.length > 30) k.shots.shift();
@@ -32,8 +33,9 @@ function eObserve() {
     if (!emits) continue;
     const k = eKnow(u);
     k.conf = Math.min(1, k.conf + (T.pw || .6) * .0008);
-    k.src = 'РТР';
+    if (k.src !== 'разведчик' && k.src !== 'FPV' && k.src !== 'анализ РТР') k.src = 'РТР';
     setKnowPos(k, u, 3.5 * (1 - k.conf) + .25);
+    quietCheck(u, k);
   }
   /* разведчики и постановщики помех смотрят вниз */
   for (const th of G.threats) {
@@ -43,7 +45,8 @@ function eObserve() {
       if (dist(u, th) > rr * G.weather.eo) continue;
       const k = eKnow(u);
       if (k.conf < .9 || G.t - k.t > 300) {
-        k.type = u.k === 'decoy' ? (chance(.6) ? 'shield' : 'decoy') : u.k;
+        /* разведчик сверху видит надувную технику: макет распознаёт в 4 случаях из 5 */
+        k.type = u.k === 'decoy' ? (chance(.2) ? 'shield' : 'decoy') : u.k;
         k.conf = .92; k.src = 'разведчик';
         setKnowPos(k, u, .3);
         if (['bastion', 'shield', 'krom', 'spaag', 'horizon'].includes(k.type) && !k.rep) {
@@ -54,6 +57,25 @@ function eObserve() {
       }
     }
   }
+}
+
+/* ---------- «излучает, но не стреляет» ----------
+   Если «ЗРК» долго светит РЛС, пока рядом идут наши борта, и ни разу не
+   пускает ракеты — это, скорее всего, макет. Копится время такой тишины
+   (k.quiet, сбрасывает eSawLaunch); набралось QUIET_T — аналитики помечают
+   позицию как макет. Настоящий ЗРК с запретом огня тоже может попасть под
+   подозрение: это честный обман. */
+const QUIET_T = 2400;
+
+function quietCheck(u, k) {
+  if (k.type === 'decoy' || !['shield', 'bastion', 'krom'].includes(k.type)) return;
+  const R0 = (UT[k.type].w ? UT[k.type].w.r : 30) * .8;
+  if (!G.threats.some(th => !th.dead && !th.lost && th.cls !== 'ballistic' && th.cls !== 'aeroball' && dist(th, u) < R0)) return;
+  k.quiet = (k.quiet || 0) + 1;   /* eObserve — раз в игровую секунду */
+  if (k.quiet < QUIET_T) return;
+  k.type = 'decoy'; k.src = 'анализ РТР'; k.quiet = 0;
+  const nc = nearCity(u);
+  mind(`Анализ РТР: «ЗРК» в кв. ${sq(u)}${nc ? ' у ' + nc.gen : ''} давно излучает, наши борта шли рядом — и ни одного пуска. Скорее всего, макет.`);
 }
 
 function eLoss(th) {

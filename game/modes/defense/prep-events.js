@@ -84,7 +84,7 @@ const DefensePrep = (() => {
     ];
     if (sams.length) all.push({ t: 'ammo', n: 'Эшелон зенитных ракет', d: `Полный боекомплект всем ЗРК и ПЗРК (${sams.length} расч.) бесплатно, плюс запас: на ближайшую ночь пополнение вдвое дешевле.` });
     if (dmg.length) all.push({ t: 'repair', n: 'Энергетики соседних краёв', d: `Все повреждённые объекты (${dmg.length}) +20% к состоянию.` });
-    all.push({ t: 'crew', n: 'Бригады ДСНС и ремонтники', d: 'На ближайшую ночь +2 пожарные и +2 ремонтные бригады.' });
+    all.push({ t: 'crew', n: 'Бригады ДСНС и ремонтники', d: 'Сегодня +1 ремонтная бригада, на ближайшую ночь +2 пожарные и +2 ремонтные.' });
     G.offers = shuffled(all).slice(0, 3);
     G.offerTaken = false;
   }
@@ -98,7 +98,7 @@ const DefensePrep = (() => {
     else if (o.t === 'unit') G.gifts.push(o.k);
     else if (o.t === 'ammo') { for (const u of G.units) if (UT[u.k].w && UT[u.k].w.kind === 'missile') u.am = UT[u.k].w.am; G.ammoDeal = 1 }
     else if (o.t === 'repair') for (const ob of G.objs) if (ob.hp < 100) ob.hp = Math.min(100, ob.hp + 20);
-    else if (o.t === 'crew') G.crewBonus = 1;
+    else if (o.t === 'crew') { G.crewBonus = 1; G.dayRep = (G.dayRep || 0) + 1 }
     hq(`Принято предложение партнёров: ${esc(o.n)}.`, 'g');
     G.offers = [o];
     return { ok: true };
